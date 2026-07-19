@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Link Expired</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial,
+          sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .card {
+        background: #fff;
+        border-radius: 16px;
+        padding: 48px 40px;
+        max-width: 480px;
+        width: 100%;
+        text-align: center;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+      }
+      .icon {
+        width: 80px;
+        height: 80px;
+        background: #fef2f2;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 24px;
+      }
+      .icon svg {
+        width: 40px;
+        height: 40px;
+      }
+      h1 {
+        font-size: 24px;
+        color: #1a1a2e;
+        margin-bottom: 12px;
+      }
+      p {
+        font-size: 15px;
+        color: #64748b;
+        line-height: 1.6;
+        margin-bottom: 32px;
+      }
+      a {
+        display: inline-block;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #fff;
+        text-decoration: none;
+        padding: 14px 36px;
+        border-radius: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        transition: opacity 0.2s;
+      }
+      a:hover {
+        opacity: 0.9;
+      }
+      .footer {
+        margin-top: 24px;
+        font-size: 13px;
+        color: #94a3b8;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="icon">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#ef4444"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+      </div>
+      <h1>Reset Link Expired</h1>
+      <p>
+        The password reset link you clicked has expired or has already been
+        used.<br />Please request a new one to continue.
+      </p>
+      <a href="/users/forgot-password">Request New Link</a>
+      <div class="footer">This link was valid for a single use only.</div>
+    </div>
+  </body>
+</html>

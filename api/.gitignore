@@ -1,0 +1,38 @@
+node_modules/
+package-lock.json
+.env
+keys/
+.prettierrc
+ecosystem.config.js
+eslint.config.js
+dist/
+build/
+*.log
+.DS_Store
+coverage/
+.nyc_output/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Dependency directories
+jspm_packages/
+bower_components/
+
+# Serverless
+.serverless/
+
+# Tern port
+.tern-port
+
+# TypeScript
+*.tsbuildinfo
