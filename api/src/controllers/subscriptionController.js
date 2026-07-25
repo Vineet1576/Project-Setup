@@ -3,6 +3,7 @@ const response = require("../utils/response");
 const Validations = require("../validations");
 const subscriptionService = require("../services/subscriptionService");
 const mongoose = require("mongoose");
+const { transactionRepo, planRepo, subscriptionRepo, userRepo } = require("../repositories");
 const db = require("../models");
 const { handlePostPaymentTasks } = require("../utils/invoices");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder");
@@ -143,24 +144,20 @@ module.exports = {
         return res.status(200).json({ received: true });
       }
 
-      const existingTransaction = await db.transactions.findOne({
+      const existingTransaction = await transactionRepo.findOne({
         stripe_session_id: checkoutSession.id,
       });
       if (existingTransaction) {
         return res.status(200).json({ received: true });
       }
 
-      const planDetail = await db.plan
-        .findOne({ _id: new ObjectId(planId), isDeleted: false })
-        .lean();
+      const planDetail = await planRepo.findById(planId);
       if (!planDetail) {
         console.error(`Plan not found: ${planId}`);
         return res.status(200).json({ received: true });
       }
 
-      let entityDetail = await db.users
-        .findOne({ _id: new ObjectId(userId), isDeleted: false })
-        .lean();
+      let entityDetail = await userRepo.findById(userId);
       let userModel = "users";
 
       if (!entityDetail) {
@@ -182,22 +179,22 @@ module.exports = {
         valid_date.setMonth(valid_date.getMonth() + 1);
       }
 
-      const existingSub = await db.subscriptions
-        .findOne({ stripe_subscription_id: checkoutSession.subscription })
-        .lean();
+      const existingSub = await subscriptionRepo.findOne({
+        stripe_subscription_id: checkoutSession.subscription,
+      });
 
-      await db.subscriptions.updateMany(
+      await subscriptionRepo.updateMany(
         {
-          userId: entityDetail._id,
+          userId: entityDetail.id,
           status: "active",
-          ...(existingSub && { _id: { $ne: existingSub._id } }),
+          ...(existingSub && { _id: { $ne: existingSub.id } }),
         },
         { $set: { status: "cancel" } },
       );
 
       const subscriptionData = {
-        userId: entityDetail._id,
-        plan_id: planDetail._id,
+        userId: entityDetail.id,
+        plan_id: planDetail.id,
         stripe_price_id:
           stripe_price_id || checkoutSession.metadata.stripe_price_id,
         unit_amount: checkoutSession.amount_total
@@ -211,23 +208,24 @@ module.exports = {
 
       let newSubscription;
       if (existingSub) {
-        newSubscription = await db.subscriptions.findByIdAndUpdate(
-          existingSub._id,
+        newSubscription = await subscriptionRepo.findByIdAndUpdate(
+          existingSub.id,
           { $set: subscriptionData },
           { new: true },
         );
       } else {
-        const created = await db.subscriptions.create([subscriptionData]);
-        newSubscription = created[0];
+        await subscriptionRepo.create(subscriptionData);
+        newSubscription = await subscriptionRepo.findOne({ stripe_subscription_id: checkoutSession.subscription });
       }
 
       if (userModel === "users") {
-        await db.users.findByIdAndUpdate(entityDetail._id, {
-          $set: { planId: planDetail._id, subscriptionId: newSubscription._id },
+        await userRepo.updateById(entityDetail.id, {
+          planId: planDetail.id,
+          subscriptionId: newSubscription.id,
         });
       } else {
-        await db.organization?.findByIdAndUpdate(entityDetail._id, {
-          $set: { planId: planDetail._id, subscriptionId: newSubscription._id },
+        await db.organization?.findByIdAndUpdate(entityDetail.id, {
+          $set: { planId: planDetail.id, subscriptionId: newSubscription.id },
         });
       }
 

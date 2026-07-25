@@ -1,14 +1,15 @@
 {
   "name": "@vineet1576/create-project",
-  "version": "3.2.0",
-  "description": "Scaffold a full-stack Express + React project with JWT auth, Socket.IO presence/chat, real-time notifications, Stripe subscriptions, invoice generation, hybrid encryption (RSA+AES-GCM / AES-CBC), user & role management, optional frontend & admin panels",
+  "version": "3.3.0",
+  "description": "Scaffold a full-stack Express + React project with Repository Pattern, polyglot database support, JWT auth, Socket.IO presence/chat, real-time notifications, Stripe subscriptions, invoice generation, hybrid encryption (RSA+AES-GCM / AES-CBC), user & role management, optional frontend & admin panels",
   "bin": {
     "create-project": "./bin/cli.js"
   },
   "keywords": [
     "scaffold",
     "express",
-    "mvc",
+    "repository-pattern",
+    "polyglot",
     "react",
     "vite",
     "auth",

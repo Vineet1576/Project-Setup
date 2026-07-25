@@ -1,50 +1,25 @@
-const db = require("../models");
-const { paginate } = require("../utils/paginate");
+const { notificationRepo, roleRepo, userRepo } = require("../repositories");
 const { emitToUser } = require("./socket");
 
 exports.createNotification = async ({ userId, type, title, message, metadata }) => {
   if (!userId || !type || !title || !message) return null;
 
-  const notification = await db.notifications.create({
+  const notification = await notificationRepo.create({
     userId, type, title, message, metadata: metadata || {},
   });
 
-  const data = notification.toObject();
-  emitToUser(userId, "new_notification", data);
-
-  return data;
+  emitToUser(userId, "new_notification", notification);
+  return notification;
 };
 
 exports.getUserNotifications = async (userId, params) => {
-  const { page = 1, count = 10, type, read } = params;
-
-  const match = { userId, dismissed: false };
-  if (type) match.type = type;
-  if (read !== undefined) match.read = read === "true";
-
-  const result = await paginate(db.notifications, {
-    page: Number(page),
-    limit: Number(count),
-    match,
-    sort: { createdAt: -1 },
-    project: {
-      _id: 1, userId: 1, type: 1, title: 1, message: 1,
-      metadata: 1, read: 1, readAt: 1, createdAt: 1,
-    },
-  });
-
-  const unreadCount = await db.notifications.countDocuments({
-    userId, read: false, dismissed: false,
-  });
-
-  return { data: result.data, total: result.pagination.total, unreadCount };
+  return notificationRepo.findAllWithPagination(userId, params);
 };
 
 exports.markAsRead = async (userId, notificationId) => {
-  const notification = await db.notifications.findOneAndUpdate(
+  const notification = await notificationRepo.findOneAndUpdate(
     { _id: notificationId, userId, dismissed: false },
-    { $set: { read: true, readAt: new Date() } },
-    { new: true, lean: true },
+    { read: true, readAt: new Date() },
   );
 
   if (notification) {
@@ -58,19 +33,16 @@ exports.markAllAsRead = async (userId, type) => {
   const match = { userId, read: false, dismissed: false };
   if (type) match.type = type;
 
-  const result = await db.notifications.updateMany(match, {
-    $set: { read: true, readAt: new Date() },
-  });
+  const result = await notificationRepo.updateMany(match, { read: true, readAt: new Date() });
 
   emitToUser(userId, "notifications_all_read", { userId });
   return { modifiedCount: result.modifiedCount };
 };
 
 exports.dismissNotification = async (userId, notificationId) => {
-  const notification = await db.notifications.findOneAndUpdate(
+  const notification = await notificationRepo.findOneAndUpdate(
     { _id: notificationId, userId },
-    { $set: { dismissed: true, dismissedAt: new Date() } },
-    { new: true, lean: true },
+    { dismissed: true, dismissedAt: new Date() },
   );
 
   if (notification) {
@@ -81,18 +53,24 @@ exports.dismissNotification = async (userId, notificationId) => {
 };
 
 exports.getUnreadCount = async (userId) => {
-  return db.notifications.countDocuments({
-    userId, read: false, dismissed: false,
-  });
+  return notificationRepo.countDocuments({ userId, read: false, dismissed: false });
 };
 
 exports.notifyAdmins = async ({ type, title, message, metadata }) => {
-  const adminRole = await db.roles.findOne({ name: "admin", isDeleted: false });
+  const adminRole = await roleRepo.findByName("admin");
   if (!adminRole) return;
-  const admins = await db.users
-    .find({ role: adminRole._id, isDeleted: false, status: "active" })
+
+  const admins = await userRepo.findOne({ role: adminRole.id, isDeleted: false, status: "active" });
+  if (!admins) return;
+
+  const adminList = await userRepo.findAllWithPagination({ role: adminRole.id, status: "active" });
+  // fetch admins directly for notification broadcast
+  const db = require("../models");
+  const adminUsers = await db.users
+    .find({ role: adminRole.id, isDeleted: false, status: "active" })
     .lean();
-  for (const admin of admins) {
+
+  for (const admin of adminUsers) {
     await exports.createNotification({
       userId: admin._id, type, title, message, metadata,
     });
@@ -100,18 +78,19 @@ exports.notifyAdmins = async ({ type, title, message, metadata }) => {
 };
 
 exports.broadcastToAll = async ({ type, title, message, metadata }) => {
+  const db = require("../models");
   const userIds = await db.users
     .find({ isDeleted: false, status: "active" })
     .distinct("_id");
 
-  const notifications = await db.notifications.insertMany(
+  const notifications = await notificationRepo.createMany(
     userIds.map((userId) => ({
       userId, type, title, message, metadata: metadata || {},
     })),
   );
 
   for (const notification of notifications) {
-    emitToUser(notification.userId, "new_notification", notification.toObject());
+    emitToUser(notification.userId, "new_notification", notification);
   }
 
   return { sent: notifications.length };

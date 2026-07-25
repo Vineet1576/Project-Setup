@@ -2,7 +2,7 @@ require("dotenv").config();
 const mongoose = require("mongoose");
 const cron = require("node-cron");
 const ObjectId = mongoose.Types.ObjectId;
-const db = require("../models");
+const { subscriptionRepo } = require("../repositories");
 const { reminderEmail, downgradeToFreeEmail } = require("../Emails/stripeEmails");
 
 cron.schedule(
@@ -19,6 +19,7 @@ cron.schedule(
       const reminderEnd = new Date(reminderStart);
       reminderEnd.setHours(23, 59, 59, 999);
 
+      const db = require("../models");
       const expiringSoon = await db.subscriptions
         .find({
           isDeleted: false,

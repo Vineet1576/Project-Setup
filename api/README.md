@@ -1,6 +1,6 @@
 # <%= projectName %>
 
-Node.js/Express REST API with MongoDB, JWT auth, encryption, and user & role management.
+Node.js/Express REST API with MongoDB, JWT auth, encryption, and **Repository Pattern** for database abstraction.
 
 ## Quick Start
 
@@ -25,6 +25,186 @@ npm run dev
 pm2 start ecosystem.config.js
 pm2 save
 pm2 startup
+```
+
+---
+
+## Architecture — Repository Pattern
+
+All database logic is isolated behind a **repository layer**. Services never touch ORMs or queries directly. Every repository method returns a **plain JavaScript object** with string IDs — never a Mongoose document.
+
+```js
+// Repository output — always a plain object
+{ id: "abc123", name: "admin", status: "active" }
+```
+
+### Architecture Overview
+
+```mermaid
+graph TB
+    Client[Client] -->|HTTP| MW[Middleware]
+    MW -->|Auth / Decrypt| Ctrl[Controller]
+    Ctrl -->|Call service| Svc[Service]
+    Svc -->|Call repository| Repo[Repository]
+    Repo -->|Query| DB[(MongoDB)]
+    DB -->|Document| Repo
+    Repo -->|Plain object| Svc
+    Svc -->|Result| Ctrl
+    Ctrl -->|JSON| Client
+```
+
+### Request Flow
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant MW as Middleware
+    participant Ctrl as Controller
+    participant Svc as Service
+    participant Repo as Repository
+    participant DB as MongoDB
+
+    C->>MW: HTTP Request
+    MW->>MW: Rate limit, CORS, Helmet
+    MW->>MW: Decrypt body (optional)
+    MW->>MW: JWT auth verify
+    MW->>Ctrl: req.identity attached
+    Ctrl->>Svc: Call service method
+    Svc->>Svc: Validate business rules
+    Svc->>Repo: Call repository method
+    Repo->>DB: Mongoose query
+    DB-->>Repo: Raw document
+    Repo->>Repo: Serialize to plain object
+    Repo-->>Svc: { id, name, ... }
+    Svc-->>Ctrl: Result
+    Ctrl-->>C: JSON response
+```
+
+### Services & Repositories Map
+
+| Service | Repository | Model |
+|---------|-----------|-------|
+| `userService.js` | `userRepository.js` | `User.js` |
+| `roleService.js` | `roleRepository.js` | `Role.js` |
+| `categoryService.js` | `categoryRepository.js` | `category.model.js` |
+| `contactUsService.js` | `contactUsRepository.js` | `ContactUs.model.js` |
+| `contentManagementService.js` | `contentManagementRepository.js` | `contentManagement.model.js` |
+| `featureService.js` | `featureRepository.js` | `featureModel.js` |
+| `planService.js` | `planRepository.js` | `planModel.js` |
+| `subscriptionService.js` | `subscriptionRepository.js` | `subscriptionModel.js` |
+| `transactionService.js` | `transactionRepository.js` | `transactionModel.js` |
+| `notificationService.js` | `notificationRepository.js` | `notification.model.js` |
+
+### Adding a New Database Tomorrow
+
+The repository pattern makes polyglot persistence additive, not invasive.
+
+#### Scenario: Add PostgreSQL for Orders
+
+```mermaid
+graph LR
+    S[Service Layer] --> R[Repository Layer]
+    R --> M[(MongoDB<br/>Users, Roles, Plans)]
+    R --> P[(PostgreSQL<br/>Orders, Products)]
+```
+
+1. Create `models/postgres/Order.js` — Sequelize model
+2. Create `repositories/orderRepository.js` — wraps Sequelize queries
+3. Export it from `repositories/index.js`
+4. Services import `orderRepo` and use it — zero impact on existing MongoDB code
+
+The existing 10 MongoDB-based services don't change at all.
+
+#### Scenario: Migrate Users from MongoDB to PostgreSQL
+
+Change **1 file** — `repositories/userRepository.js`:
+
+```js
+exports.findByEmail = async (email) => {
+  if (config.USE_PG_FOR_USERS) {
+    return pgUserRepo.findByEmail(email);  // Sequelize query
+  }
+  return mongoUserRepo.findByEmail(email); // Mongoose query
+};
+```
+
+All 12 services that call `userRepo.findByEmail()` continue working unchanged.
+
+### Repository Pattern Rules
+
+1. **Methods return plain objects** — `{ id: string, ... }`, never Mongoose documents
+2. **null for not-found** — never throw from a repo; let the service decide
+3. **lean() on all queries** — no Mongoose document overhead
+4. **All ORM-specific syntax inside repos** — `$lookup`, `$match`, `.populate()` never leak to services
+5. **Services do business logic** — validation, authorization, email sending, cross-repo orchestration
+
+### Directory Structure
+
+```
+src/
+├── app.js                             # Express app setup, DB init
+├── config/
+│   └── db.config.js                   # MongoDB URI builder
+├── controllers/                       # Route handlers (thin wrappers)
+│   ├── userController.js
+│   ├── roleController.js
+│   ├── categoryController.js
+│   ├── contactUsController.js
+│   ├── contentManagementController.js
+│   ├── featureController.js
+│   ├── planController.js
+│   ├── subscriptionController.js
+│   ├── notificationController.js
+│   ├── transactionController.js
+│   ├── uploadController.js
+│   └── ...
+├── Emails/                            # Nodemailer SMTP + templates
+├── middleware/                         # Auth, decrypt, error handler
+├── models/                            # Mongoose schemas
+│   ├── index.js                       # Model registry
+│   ├── User.js
+│   ├── Role.js
+│   ├── category.model.js
+│   └── ...
+├── repositories/                      # ★ DATABASE LAYER ★
+│   ├── repositoryUtils.js             # Shared serialize, paginate, helpers
+│   ├── index.js                       # Barrel export
+│   ├── userRepository.js
+│   ├── roleRepository.js
+│   ├── categoryRepository.js
+│   ├── contactUsRepository.js
+│   ├── contentManagementRepository.js
+│   ├── featureRepository.js
+│   ├── planRepository.js
+│   ├── subscriptionRepository.js
+│   ├── transactionRepository.js
+│   └── notificationRepository.js
+├── routes/
+│   ├── index.js                       # Route aggregator
+│   ├── userRoutes.js
+│   ├── roleRoutes.js
+│   └── ...
+├── services/                          # ★ BUSINESS LOGIC ★ (calls repos only)
+│   ├── userService.js
+│   ├── roleService.js
+│   ├── categoryService.js
+│   ├── contactUsService.js
+│   ├── contentManagementService.js
+│   ├── featureService.js
+│   ├── planService.js
+│   ├── subscriptionService.js
+│   ├── transactionService.js
+│   ├── notificationService.js
+│   ├── uploadService.js
+│   └── socket.js
+├── utils/
+│   ├── constants.js
+│   ├── helpers.js
+│   ├── paginate.js
+│   ├── response.js
+│   └── invoices.js
+├── validations/                       # Joi schemas
+└── views/                             # Static HTML
 ```
 
 ---
@@ -301,20 +481,3 @@ All errors return JSON with the following structure:
 ## Postman Collection
 
 Import the collection from `postman/collection.json` (if available).
-
-## Directory Structure
-
-```
-src/
-  app.js                  — Express app setup
-  config/                 — DB config
-  controllers/            — Route handlers (thin wrappers)
-  Emails/                 — Email templates & SMTP
-  middleware/             — Auth, decrypt, validation
-  models/                 — Mongoose schemas
-  routes/                 — Express routers
-  services/               — Business logic
-  utils/                  — Helpers, constants, paginate, response
-  validations/            — Joi schemas
-  views/                  — Static HTML pages
-```

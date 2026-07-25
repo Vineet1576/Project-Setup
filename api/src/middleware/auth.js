@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const db = require("../models");
+const { userRepo } = require("../repositories");
 const unprotectedRoutes = require("../utils/unprotectedRoutes");
 
 const protect = async (req, res, next) => {
@@ -33,9 +33,9 @@ const protect = async (req, res, next) => {
     const token = parts[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const user = await db.users.findById(decoded.id)
-      .select("isDeleted status email fullName phone profileImage")
-      .lean();
+    const user = await userRepo.findById(decoded.id, {
+      select: "isDeleted status email fullName phone profileImage",
+    });
 
     if (!user) {
       return res.status(401).json({
@@ -56,8 +56,8 @@ const protect = async (req, res, next) => {
 
     req.identity = {
       ...user,
-      _id: user._id,
-      id: user._id,
+      _id: user.id,
+      id: user.id,
       userType: isAdmin ? "admin" : "user",
       isAdmin,
       role: { _id: decoded.role, name: roleName },

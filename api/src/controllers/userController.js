@@ -4,7 +4,7 @@ const Validations = require('../validations/index');
 const userServices = require('../services/userService');
 const { encryptData, decryptData } = require('../utils/response');
 const Emails = require('../Emails/templates');
-const db = require('../models');
+const { userRepo } = require('../repositories');
 const helper = require('../utils/helpers');
 
 module.exports = {
@@ -211,11 +211,8 @@ module.exports = {
       }
       const user = await userServices.addUser(req.body);
       const { deviceToken } = req.body;
-      if (deviceToken) {
-        const db = require('../models');
-        await db.users.findByIdAndUpdate(user._id, {
-          $addToSet: { deviceTokens: deviceToken },
-        });
+      if (deviceToken && user?.id) {
+        await userRepo.pushDeviceToken(user.id, deviceToken);
       }
       return response.success(user, constants.onBoarding.USER_ADDED, req, res);
     } catch (err) {
@@ -311,14 +308,14 @@ module.exports = {
       const decrypted = decryptData(data);
       const { userId, code, expiresAt } = decrypted;
 
-      const user = await db.users.findById(userId).select('+verificationCode');
+      const user = await userRepo.findById(userId, { select: '+verificationCode' });
       if (!user) return res.send(Emails.expiredLinkHtml);
 
       if (user.verificationCode !== code || user.isExpire || Date.now() > expiresAt) {
         return res.send(Emails.expiredLinkHtml);
       }
 
-      await db.users.updateOne({ _id: userId }, { isExpire: true });
+      await userRepo.updateById(userId, { isExpire: true });
 
       const tempToken = encryptData({ userId, purpose: 'reset-password' });
 

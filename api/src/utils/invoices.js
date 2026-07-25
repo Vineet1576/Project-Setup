@@ -4,7 +4,6 @@ const path = require('path');
 const db = require('../models');
 const { customerPlanPurchaseEmail } = require('../Emails/stripeEmails');
 const notificationService = require('../services/notificationService');
-const transactionService = require('../services/transactionService');
 
 let cachedLogoBase64 = '';
 
@@ -464,6 +463,8 @@ const handlePostPaymentTasks = async (
         : db.organization?.findByIdAndUpdate(entity._id, {
             $set: { planId: plan._id, subscriptionId: sub._id },
           });
+
+    const transactionService = require('../services/transactionService');
 
     await Promise.all([
       entityUpdate,

@@ -1,6 +1,6 @@
 # create-project
 
-A CLI tool that scaffolds a **full-stack project** — pick from **API (Express + MongoDB)**, **Frontend (React + Vite)**, or **Admin Panel (React + Vite)** — all in one command. Features JWT authentication, hybrid encryption (RSA+AES-GCM or AES-CBC), user & role management, and optional GitHub push.
+A CLI tool that scaffolds a **full-stack project** — pick from **API (Express + MongoDB with Repository Pattern)**, **Frontend (React + Vite)**, or **Admin Panel (React + Vite)** — all in one command. Features JWT authentication, hybrid encryption (RSA+AES-GCM or AES-CBC), user & role management, and optional GitHub push.
 
 ## 🌟 Why This Stands Out
 
@@ -16,6 +16,7 @@ A CLI tool that scaffolds a **full-stack project** — pick from **API (Express 
 | **CORS deny-by-default** | If `CORS_ORIGIN` is not set, all cross-origin requests are denied — safe fallback |
 | **Stateless JWT Bearer auth** | No cookies, no CSRF surface — immune to CSRF attacks by design |
 | **End-to-end encryption** | Frontend encrypts before sending, server decrypts on arrival. Not just transport-level TLS |
+| **Repository Pattern** | All database logic isolated behind a repository layer — swap MongoDB for PostgreSQL without touching services |
 
 ## Usage
 
@@ -52,6 +53,9 @@ Based on your choice, the CLI adapts the prompts:
 ## What You Get
 
 ### API (Express + MongoDB)
+
+- **Repository Pattern** — All database logic in `repositories/` layer. Services never touch ORMs.
+- **Polyglot-ready** — Add PostgreSQL or any other database without changing existing services.
 - **JWT auth** — Register, login (user/admin), auto-login, logout
 - **User module** — Profile, password management, forgot/reset password, email verification
 - **Single-use verification links** — New users receive an encrypted "Verify & Login" link (one-time use, 24h expiry). No plaintext passwords in emails.
@@ -114,42 +118,146 @@ Limits apply per-IP. 100 users from 100 different IPs can each hit login 15 time
 
 When crypto-secure is enabled, the server automatically generates RSA keys on first run and exposes `/.well-known/encryption-key`. Frontend/admin clients auto-detect the mode and handle encryption transparently via Axios interceptors.
 
+## Architecture — Repository Pattern
+
+All database logic is isolated behind a **repository layer**. Services never touch ORMs or queries directly. Every repository method returns a **plain JavaScript object** with string IDs — never a Mongoose document.
+
+```js
+// Repository output — always a plain object
+{ id: "abc123", name: "admin", status: "active" }
+```
+
+### Architecture Overview
+
+```mermaid
+graph TB
+    Client[Client] -->|HTTP| MW[Middleware]
+    MW -->|Auth / Decrypt| Ctrl[Controller]
+    Ctrl -->|Call service| Svc[Service]
+    Svc -->|Call repository| Repo[Repository]
+    Repo -->|Query| DB[(MongoDB)]
+    DB -->|Document| Repo
+    Repo -->|Plain object| Svc
+    Svc -->|Result| Ctrl
+    Ctrl -->|JSON| Client
+```
+
+### Request Flow
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant MW as Middleware
+    participant Ctrl as Controller
+    participant Svc as Service
+    participant Repo as Repository
+    participant DB as MongoDB
+
+    C->>MW: HTTP Request
+    MW->>MW: Rate limit, CORS, Helmet
+    MW->>MW: Decrypt body (optional)
+    MW->>MW: JWT auth verify
+    MW->>Ctrl: req.identity attached
+    Ctrl->>Svc: Call service method
+    Svc->>Svc: Validate business rules
+    Svc->>Repo: Call repository method
+    Repo->>DB: Mongoose query
+    DB-->>Repo: Raw document
+    Repo->>Repo: Serialize to plain object
+    Repo-->>Svc: { id, name, ... }
+    Svc-->>Ctrl: Result
+    Ctrl-->>C: JSON response
+```
+
+### Services & Repositories Map
+
+| Service | Repository | Database |
+|---------|-----------|----------|
+| `userService.js` | `userRepository.js` | MongoDB |
+| `roleService.js` | `roleRepository.js` | MongoDB |
+| `categoryService.js` | `categoryRepository.js` | MongoDB |
+| `contactUsService.js` | `contactUsRepository.js` | MongoDB |
+| `contentManagementService.js` | `contentManagementRepository.js` | MongoDB |
+| `featureService.js` | `featureRepository.js` | MongoDB |
+| `planService.js` | `planRepository.js` | MongoDB |
+| `subscriptionService.js` | `subscriptionRepository.js` | MongoDB |
+| `transactionService.js` | `transactionRepository.js` | MongoDB |
+| `notificationService.js` | `notificationRepository.js` | MongoDB |
+
+### Adding a New Database Tomorrow
+
+The repository pattern makes polyglot persistence additive, not invasive.
+
+#### Scenario: Add PostgreSQL for Orders
+
+```mermaid
+graph LR
+    S[Service Layer] --> R[Repository Layer]
+    R --> M[(MongoDB<br/>Users, Roles, Plans)]
+    R --> P[(PostgreSQL<br/>Orders, Products)]
+```
+
+1. Create `models/postgres/Order.js` — Sequelize model
+2. Create `repositories/orderRepository.js` — wraps Sequelize queries
+3. Export it from `repositories/index.js`
+4. Services import `orderRepo` and use it — zero impact on existing MongoDB code
+
+All 10 MongoDB-based services continue working unchanged.
+
+#### Scenario: Migrate Users from MongoDB to PostgreSQL
+
+Change **1 file** — `repositories/userRepository.js`:
+
+```js
+exports.findByEmail = async (email) => {
+  if (config.USE_PG_FOR_USERS) {
+    return pgUserRepo.findByEmail(email);  // Sequelize query
+  }
+  return mongoUserRepo.findByEmail(email); // Mongoose query
+};
+```
+
+All 12 services that call `userRepo.findByEmail()` continue working unchanged.
+
+### Repository Pattern Rules
+
+1. **Methods return plain objects** — `{ id: string, ... }`, never Mongoose documents
+2. **null for not-found** — never throw from a repo; let the service decide
+3. **lean() on all queries** — no Mongoose document overhead
+4. **All ORM-specific syntax inside repos** — `$lookup`, `$match`, `.populate()` never leak to services
+5. **Services do business logic** — validation, authorization, email sending, cross-repo orchestration
+
+---
+
 ## Generated Project Structure
 
 ### If you chose **API**:
 ```
 my-app/
-├── src/                        # Express API
+├── src/
 │   ├── app.js
 │   ├── config/
-│   ├── controllers/
-│   │   ├── userController.js
-│   │   ├── roleController.js
-│   │   ├── categoryController.js
-│   │   ├── subscriptionController.js
-│   │   ├── notificationController.js
-│   │   ├── transactionController.js
-│   │   └── ...
-│   ├── Emails/
-│   ├── middleware/
-│   ├── models/
-│   ├── routes/
-│   ├── services/
-│   │   ├── socket.js            # Socket.IO (presence, chat, notifications)
-│   │   ├── notificationService.js
-│   │   ├── transactionService.js
-│   │   └── ...
-│   ├── utils/
-│   ├── validations/
-│   └── views/
-├── .env                        # All secrets here (JWT, DB, keys, etc.)
+│   │   └── db.config.js
+│   ├── controllers/                  # Route handlers
+│   ├── Emails/                       # Email templates
+│   ├── middleware/                    # Auth, decrypt
+│   ├── models/                       # Mongoose schemas (MongoDB)
+│   ├── repositories/                 # ★ DATABASE LAYER ★
+│   │   ├── repositoryUtils.js        # Shared helpers
+│   │   ├── index.js                  # Barrel export
+│   │   ├── userRepository.js
+│   │   ├── roleRepository.js
+│   │   └── ... (one per domain)
+│   ├── routes/                       # Express routers
+│   ├── services/                     # ★ BUSINESS LOGIC ★
+│   ├── utils/                        # Helpers, constants
+│   ├── validations/                  # Joi schemas
+│   └── views/                        # Static HTML
+├── .env
 ├── .env.example
-├── .gitignore
-├── .prettierrc
-├── eslint.config.js
 ├── ecosystem.config.js
 ├── package.json
-└── seed.js                     # Optional seed (RUN_SEED=true)
+└── seed.js
 ```
 
 ### If you chose **Frontend**:
@@ -262,6 +370,7 @@ my-app/
 |-------|---------|------------------|
 | Framework | Express.js | React 18 + Vite |
 | Database | MongoDB + Mongoose | — |
+| Database Layer | **Repository Pattern** (repositories/) | — |
 | Auth | JWT (`jsonwebtoken`) | Context API + localStorage |
 | Encryption | `node-forge` / `crypto-secure` | Web Crypto API / Axios interceptors |
 | Rate limiting | `express-rate-limit` | — |

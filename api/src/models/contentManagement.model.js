@@ -48,7 +48,6 @@ module.exports = (mongoose) => {
   );
 
   contentSchema.index({ status: 1, isDeleted: 1 });
-  contentSchema.index({ slug: 1 });
 
   contentSchema.methods.toJSON = function () {
     const obj = this.toObject();

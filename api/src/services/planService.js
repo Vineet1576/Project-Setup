@@ -1,15 +1,16 @@
-const db = require('../models');
-const mongoose = require('mongoose');
-const constants = require('../utils/constants');
-const helper = require('../utils/helpers');
-const { paginate } = require('../utils/paginate');
+const mongoose = require("mongoose");
+const { planRepo } = require("../repositories");
+const constants = require("../utils/constants");
+const helper = require("../utils/helpers");
 
-const getStripe = () => require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder');
+const db = require("../models");
+
+const getStripe = () => require("stripe")(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder");
 
 const findPlanOrThrow = async (id, trim) => {
   const planId = trim ? id.trim() : id;
-  if (!planId || planId === '') throw 'Invalid plan ID provided';
-  const plan = await db.plan.findOne({ _id: planId, isDeleted: false });
+  if (!planId || planId === "") throw "Invalid plan ID provided";
+  const plan = await planRepo.findById(planId);
   if (!plan) throw `Plan not found with ID: ${id}`;
   return plan;
 };
@@ -17,7 +18,7 @@ const findPlanOrThrow = async (id, trim) => {
 const parseFeatures = (features) => {
   if (!features) return undefined;
   let parsed = features;
-  if (typeof parsed === 'string') {
+  if (typeof parsed === "string") {
     try {
       parsed = JSON.parse(parsed);
     } catch {
@@ -28,8 +29,8 @@ const parseFeatures = (features) => {
   if (Array.isArray(parsed)) {
     parsed = parsed
       .map((f) => {
-        if (typeof f === 'object' && f.id) return f.id;
-        if (typeof f === 'string') return f;
+        if (typeof f === "object" && f.id) return f.id;
+        if (typeof f === "string") return f;
         return null;
       })
       .filter((id) => id && mongoose.Types.ObjectId.isValid(id))
@@ -45,24 +46,24 @@ exports.createPlan = async (data) => {
 
   data.features = parseFeatures(data.features);
 
-  const existed = await db.plan.findOne({
+  const existed = await planRepo.findOne({
     name: data.name,
     plan_type: data.plan_type,
     isDeleted: false,
   });
-  if (existed) throw 'Plan with this name already exists';
+  if (existed) throw "Plan with this name already exists";
 
-  if (data.recommended === 'yes') {
-    const recommendedExist = await db.plan.findOne({
-      recommended: 'yes',
+  if (data.recommended === "yes") {
+    const recommendedExist = await planRepo.findOne({
+      recommended: "yes",
       planFor: data.planFor,
       isDeleted: false,
     });
     if (recommendedExist) throw constants.PLAN.RECOMMENDED_PLAN_ALREADY_EXIST;
   }
 
-  if (data.plan_type === 'free') {
-    const freePlanCheck = await db.plan.findOne({
+  if (data.plan_type === "free") {
+    const freePlanCheck = await planRepo.findOne({
       plan_type: data.plan_type,
       isDeleted: false,
     });
@@ -72,29 +73,29 @@ exports.createPlan = async (data) => {
       data.pricing = data.pricing.map((price) => ({
         interval: price.interval,
         interval_count: 1,
-        currency: price.currency || 'usd',
+        currency: price.currency || "usd",
         unit_amount: 0,
-        stripe_price_id: '',
+        stripe_price_id: "",
       }));
     }
 
-    await db.plan.create(data);
+    await planRepo.create(data);
     return;
   }
 
-  const allowedIntervals = ['month', 'year'];
+  const allowedIntervals = ["month", "year"];
 
   if (!data.pricing || !Array.isArray(data.pricing)) {
-    throw 'Pricing must contain monthly or yearly plan';
+    throw "Pricing must contain monthly or yearly plan";
   }
 
   if (data.pricing.length > 2) {
-    throw 'Only monthly and yearly pricing allowed';
+    throw "Only monthly and yearly pricing allowed";
   }
 
   for (const price of data.pricing) {
     if (!allowedIntervals.includes(price.interval)) {
-      throw 'Only monthly and yearly pricing allowed';
+      throw "Only monthly and yearly pricing allowed";
     }
   }
 
@@ -109,29 +110,23 @@ exports.createPlan = async (data) => {
     if (!itm.unit_amount || itm.unit_amount <= 0) {
       throw `Invalid unit_amount for ${itm.interval}`;
     }
-    if (itm.currency !== 'usd') itm.currency = 'usd';
+    if (itm.currency !== "usd") itm.currency = "usd";
 
     const price = await getStripe().prices.create({
       product: product.id,
       unit_amount: Math.round(itm.unit_amount * 100),
-      currency: itm.currency || 'usd',
+      currency: itm.currency || "usd",
       recurring: { interval: itm.interval, interval_count: 1 },
     });
 
     itm.stripe_price_id = price.id;
   }
 
-  const newPlan = await db.plan.create(data);
-  return newPlan;
+  return planRepo.create(data);
 };
 
 exports.planDetail = async ({ id, userId }) => {
-  const plan = await db.plan
-    .findOne({ _id: id, isDeleted: false })
-    .populate('dispensary')
-    .populate('features')
-    .lean();
-
+  const plan = await planRepo.findDetail(id);
   if (!plan) throw constants.PLAN.NOT_FOUND;
 
   plan.isActive = false;
@@ -143,16 +138,16 @@ exports.planDetail = async ({ id, userId }) => {
 
   const objectId = new mongoose.Types.ObjectId(userId);
 
-  let entityDetail = await db.organization.findOne({ _id: objectId, isDeleted: false });
+  let entityDetail = await db.organization?.findOne({ _id: objectId, isDeleted: false }).lean();
   if (!entityDetail) {
-    entityDetail = await db.users.findOne({ _id: objectId, isDeleted: false });
+    entityDetail = await db.users.findOne({ _id: objectId, isDeleted: false }).lean();
   }
 
   if (!entityDetail) return plan;
 
   const activeSubscription = await db.subscriptions
     .findOne({
-      status: 'active',
+      status: "active",
       isDeleted: false,
       plan_id: plan._id,
       userId: entityDetail._id,
@@ -164,8 +159,8 @@ exports.planDetail = async ({ id, userId }) => {
   plan.isActive = true;
   plan.validUpTo = activeSubscription.valid_upto || null;
 
-  if (plan.plan_type === 'paid' && Array.isArray(plan.pricing)) {
-    const normalize = (val) => String(val || '').toLowerCase();
+  if (plan.plan_type === "paid" && Array.isArray(plan.pricing)) {
+    const normalize = (val) => String(val || "").toLowerCase();
 
     for (const price of plan.pricing) {
       const subType = normalize(activeSubscription.interval?.type);
@@ -174,16 +169,16 @@ exports.planDetail = async ({ id, userId }) => {
       const priceCount = Number(price.interval_count);
 
       const isMatching =
-        (subType === 'month' && priceType === 'month' && subCount === priceCount) ||
-        (subType === 'year' && priceType === 'year' && subCount === priceCount) ||
-        (subType === 'month' && subCount === 12 && priceType === 'year') ||
-        (subType === 'year' && subCount === 1 && priceType === 'month' && priceCount === 12);
+        (subType === "month" && priceType === "month" && subCount === priceCount) ||
+        (subType === "year" && priceType === "year" && subCount === priceCount) ||
+        (subType === "month" && subCount === 12 && priceType === "year") ||
+        (subType === "year" && subCount === 1 && priceType === "month" && priceCount === 12);
 
       if (isMatching) {
-        plan.isOneMonth = priceType === 'month' && priceCount === 1;
+        plan.isOneMonth = priceType === "month" && priceCount === 1;
         plan.isYearly =
-          (priceType === 'year' && priceCount === 1) ||
-          (priceType === 'month' && priceCount === 12);
+          (priceType === "year" && priceCount === 1) ||
+          (priceType === "month" && priceCount === 12);
         break;
       }
     }
@@ -194,35 +189,12 @@ exports.planDetail = async ({ id, userId }) => {
 
 exports.getAllPlans = async (params) => {
   let {
-    search,
-    plan_type,
-    page = 1,
-    count = 10,
-    dispensary,
-    status,
-    isDeleted,
-    sortBy,
-    userId,
-    planFor,
-    type,
+    search, plan_type, page = 1, count = 10, dispensary, status, isDeleted,
+    sortBy, userId, planFor, type,
   } = params;
 
   page = Number(page);
   count = Number(count);
-
-  const match = {};
-  match.isDeleted = isDeleted === 'true';
-
-  if (status) match.status = status;
-  if (type) match.type = type.toLowerCase();
-  if (planFor) match.planFor = planFor;
-  if (plan_type) match.plan_type = plan_type;
-
-  if (dispensary) {
-    match.dispensary = new mongoose.Types.ObjectId(dispensary);
-  }
-
-  const sortOption = helper.parseSortParam(sortBy, "updatedAt");
 
   let entityDetail = null;
   let activeSubscriptions = [];
@@ -230,14 +202,14 @@ exports.getAllPlans = async (params) => {
   if (userId) {
     const objectId = new mongoose.Types.ObjectId(userId);
 
-    entityDetail = await db.organization.findOne({ _id: objectId, isDeleted: false });
+    entityDetail = await db.organization?.findOne({ _id: objectId, isDeleted: false }).lean();
     if (!entityDetail) {
-      entityDetail = await db.users.findOne({ _id: objectId, isDeleted: false });
+      entityDetail = await db.users.findOne({ _id: objectId, isDeleted: false }).lean();
     }
 
     if (entityDetail) {
       activeSubscriptions = await db.subscriptions
-        .find({ status: 'active', isDeleted: false, userId: entityDetail._id })
+        .find({ status: "active", isDeleted: false, userId: entityDetail._id })
         .lean();
     }
   }
@@ -247,54 +219,8 @@ exports.getAllPlans = async (params) => {
     activeSubscriptionsMap[String(sub.plan_id)] = sub;
   }
 
-  const result = await paginate(db.plan, {
-    page,
-    limit: count,
-    match,
-    sort: sortOption,
-    lookups: [
-      {
-        from: 'dispensaries',
-        localField: 'dispensary',
-        foreignField: '_id',
-        as: 'dispensaryDetails',
-      },
-      {
-        from: 'features',
-        localField: 'features',
-        foreignField: '_id',
-        as: 'features_details',
-      },
-    ],
-    unwindFields: ['$dispensaryDetails'],
-    project: {
-      name: 1,
-      pricing: 1,
-      plan_type: 1,
-      stripe_price_id: 1,
-      stripe_plan_id: 1,
-      features: '$features_details',
-      recommended: 1,
-      numberOfDays: 1,
-      numberOfDispenseries: 1,
-      numberOfNotifications: 1,
-      currencyType: 1,
-      trial_period_days: 1,
-      description: 1,
-      isActive: 1,
-      status: 1,
-      isDeleted: 1,
-      createdAt: 1,
-      updatedAt: 1,
-      dispensary: '$dispensaryDetails',
-      type: 1,
-      series: 1,
-      seriesTournaments: 1,
-      seriesFeaturedLimit: 1,
-      tournamentFeaturedLimit: 1,
-    },
-    search: search || undefined,
-    searchFields: ['name'],
+  const result = await planRepo.findAllWithPagination({
+    search, plan_type, page, count, dispensary, status, isDeleted, sortBy, userId, planFor, type,
   });
 
   for (const plan of result.data) {
@@ -309,21 +235,21 @@ exports.getAllPlans = async (params) => {
       plan.isActive = true;
       plan.validUpTo = activeSubscription.valid_upto || null;
 
-      if (plan.plan_type === 'paid' && Array.isArray(plan.pricing)) {
+      if (plan.plan_type === "paid" && Array.isArray(plan.pricing)) {
         const matchedPrice = plan.pricing.find(
           (price) => price.stripe_price_id === activeSubscription.stripe_price_id,
         );
 
         if (matchedPrice) {
-          const normalize = (val) => String(val || '').toLowerCase();
+          const normalize = (val) => String(val || "").toLowerCase();
           plan.isOneMonth =
-            normalize(matchedPrice.interval) === 'month' &&
+            normalize(matchedPrice.interval) === "month" &&
             Number(matchedPrice.interval_count) === 1;
 
           plan.isYearly =
-            (normalize(matchedPrice.interval) === 'year' &&
+            (normalize(matchedPrice.interval) === "year" &&
               Number(matchedPrice.interval_count) === 1) ||
-            (normalize(matchedPrice.interval) === 'month' &&
+            (normalize(matchedPrice.interval) === "month" &&
               Number(matchedPrice.interval_count) === 12);
         }
       }
@@ -356,9 +282,9 @@ exports.updatePlan = async (data) => {
     updateData.pricing = updateData.pricing.map((price) => ({
       interval: price.interval,
       interval_count: price.interval_count || 1,
-      currency: price.currency || 'usd',
+      currency: price.currency || "usd",
       unit_amount: price.unit_amount || 0,
-      stripe_price_id: price.stripe_price_id || '',
+      stripe_price_id: price.stripe_price_id || "",
     }));
   }
 
@@ -367,23 +293,23 @@ exports.updatePlan = async (data) => {
   }
 
   Object.keys(updateData).forEach((key) => {
-    if (updateData[key] === '' || updateData[key] === undefined) {
+    if (updateData[key] === "" || updateData[key] === undefined) {
       delete updateData[key];
     }
   });
 
-  await db.plan.updateOne({ _id: id }, { $set: updateData });
+  await planRepo.updateOne(id, updateData);
 };
 
 exports.deletePlan = async ({ id }) => {
   const exists = await findPlanOrThrow(id, true);
 
-  const activePlans = await db.users.find({ planId: id, isDeleted: false }).lean();
+  const activePlans = await planRepo.findUsersByPlanId(id);
   if (activePlans.length > 0) {
     throw `${constants.PLAN.DELETION_ERR} ${activePlans.length} users`;
   }
 
-  if (exists.plan_type === 'paid') {
+  if (exists.plan_type === "paid") {
     const stripeErrors = [];
 
     if (exists.pricing && Array.isArray(exists.pricing)) {
@@ -406,16 +332,12 @@ exports.deletePlan = async ({ id }) => {
     }
 
     if (stripeErrors.length > 0) {
-      console.warn('Stripe deactivation had errors:', stripeErrors);
+      console.warn("Stripe deactivation had errors:", stripeErrors);
     }
   }
 
-  const updateResult = await db.plan.updateOne(
-    { _id: id.trim() },
-    { $set: { isDeleted: true, isActive: false, deletedAt: new Date() } },
-  );
-
-  if (updateResult.modifiedCount === 0) throw 'Failed to update plan';
+  const updateResult = await planRepo.softDelete(id);
+  if (updateResult.modifiedCount === 0) throw "Failed to update plan";
 
   return { id: id.trim(), deleted: true, plan_type: exists.plan_type };
 };

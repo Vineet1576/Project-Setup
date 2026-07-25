@@ -1,70 +1,16 @@
-const db = require("../models");
+const { contentManagementRepo } = require("../repositories");
 const constants = require("../utils/constants");
 const helper = require("../utils/helpers");
-const { paginate } = require("../utils/paginate");
-
-const buildQuery = ({ title, id, slug } = {}) => {
-  const query = {};
-  if (title) query.title = title;
-  if (id) query._id = id;
-  if (slug) query.slug = slug;
-  return query;
-};
 
 const findContentOrThrow = async (params) => {
-  const query = buildQuery(params);
-  if (!Object.keys(query).length) throw constants.CONTENT_MANAGEMENT.NOT_FOUND;
-  const content = await db.contentManagement.findOne(query);
+  const content = await contentManagementRepo.findByTitleOrIdOrSlug(params);
   if (!content) throw constants.CONTENT_MANAGEMENT.NOT_FOUND;
   return content;
 };
 
 exports.listing = async (data) => {
   const { search, page = 1, count = 10, sortBy, title, status } = data;
-  const match = { isDeleted: false };
-
-  if (title) match.title = title;
-  if (status) match.status = status;
-
-  const sortOption = helper.parseSortParam(sortBy);
-
-  const result = await paginate(db.contentManagement, {
-    page: Number(page),
-    limit: Number(count),
-    match,
-    sort: sortOption,
-    project: {
-      id: "$_id",
-      title: 1,
-      image: 1,
-      slug: 1,
-      description: 1,
-      meta_title: 1,
-      meta_description: 1,
-      meta_key: 1,
-      keywords: 1,
-      type: 1,
-      status: 1,
-      updatedBy: 1,
-      createdAt: 1,
-      updatedAt: 1,
-      isDeleted: 1,
-      addedBy: 1,
-    },
-    search: search || undefined,
-    searchFields: [
-      "title",
-      "keywords",
-      "meta_title",
-      "meta_key",
-      "meta_description",
-    ],
-  });
-
-  return {
-    data: result.data,
-    total: result.pagination.total,
-  };
+  return contentManagementRepo.findAllWithPagination({ search, page, count, sortBy, title, status });
 };
 
 exports.addContent = async (data) => {
@@ -73,10 +19,7 @@ exports.addContent = async (data) => {
   data.title = data.title.toLowerCase().trim();
   data.slug = await helper.generateSlug(data.title);
 
-  const existingData = await db.contentManagement.findOne({
-    slug: data.slug,
-    isDeleted: false,
-  });
+  const existingData = await contentManagementRepo.findByTitleOrIdOrSlug({ slug: data.slug });
   if (existingData) throw constants.CONTENT_MANAGEMENT.ALREADY_EXIST;
 
   data.heading = data.heading ? data.heading.trim() : data.title;
@@ -101,8 +44,7 @@ exports.addContent = async (data) => {
       }))
     : [];
 
-  const created = await db.contentManagement.create(data);
-  return created;
+  return contentManagementRepo.create(data);
 };
 
 exports.editContent = async (data) => {
@@ -112,20 +54,16 @@ exports.editContent = async (data) => {
   if (data.title) data.type = data.title.toLowerCase();
 
   await findContentOrThrow({ id });
-  await db.contentManagement.updateOne({ _id: id }, data);
+  await contentManagementRepo.updateOne(id, data);
 };
 
 exports.getContent = async ({ title, id, slug }) => {
-  const content = await db.contentManagement
-    .findOne(buildQuery({ title, id, slug }))
-    .populate("updatedBy", "fullName email name image")
-    .lean();
-
+  const content = await contentManagementRepo.findByTitleOrIdOrSlug({ title, id, slug });
   if (!content) throw constants.CONTENT_MANAGEMENT.TITLE_MISSING;
   return content;
 };
 
 exports.statusUpdate = async ({ status, title, id }) => {
   const existed = await findContentOrThrow({ title, id });
-  await db.contentManagement.updateOne({ _id: existed._id }, { $set: { status } });
+  await contentManagementRepo.updateOne(existed.id, { status });
 };
