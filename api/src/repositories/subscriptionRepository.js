@@ -141,7 +141,7 @@ exports.findFeaturesByIds = async (ids) => {
 };
 
 exports.findAllWithPagination = async (filters) => {
-  const { page, count, sortBy, userId, status, isDeleted, type, search } = filters;
+  const { page = 1, count = 10, sortBy, userId, status, isDeleted, type, search } = filters;
 
   const match = { isDeleted: Boolean(isDeleted) };
   if (status) match.status = status;

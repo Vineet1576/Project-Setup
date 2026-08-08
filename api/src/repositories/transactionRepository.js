@@ -15,8 +15,20 @@ const fields = [
   'invoiceUrl',
   'type',
   'subscriptionId',
+  'transactionId',
+  'invoiceId',
+  'planDetails',
+  'stripe_fee',
+  'net_amount',
   'isDeleted',
 ];
+
+const generateCustomId = (prefix) => {
+  const d = new Date();
+  const dateStr = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `${prefix}-${dateStr}-${rand}`;
+};
 
 const serializeTx = (doc) => serialize(doc, fields);
 
@@ -32,6 +44,11 @@ exports.create = async (data) => {
     invoiceUrl: data.invoiceUrl || '',
     subscriptionId: data.subscriptionId,
     type: data.type,
+    transactionId: data.transactionId || generateCustomId('TXN'),
+    invoiceId: data.invoiceId || generateCustomId('INV'),
+    planDetails: data.planDetails || {},
+    stripe_fee: data.stripe_fee || 0,
+    net_amount: data.net_amount || 0,
   });
   return serializeTx(doc);
 };
@@ -56,7 +73,7 @@ exports.findInvoiceTransaction = async (transactionId) => {
 };
 
 exports.findAllWithPagination = async (filters) => {
-  const { page, count, sortBy, userId, search, status, isDeleted } = filters;
+  const { page = 1, count = 10, sortBy, userId, search, status, isDeleted } = filters;
 
   const match = { isDeleted: Boolean(isDeleted) };
   if (status) match.status = status;
@@ -69,27 +86,46 @@ exports.findAllWithPagination = async (filters) => {
     { page: Number(page), limit: Number(count), search, match },
     {
       sort: sortOption,
-      searchFields: ['stripe_session_id', 'status', 'currency'],
+      searchFields: ['transactionId', 'stripe_session_id', 'status', 'currency'],
       lookups: [
         { from: 'users', localField: 'userId', foreignField: '_id', as: 'userDetails' },
         { from: 'venues', localField: 'userId', foreignField: '_id', as: 'venueDetails' },
-        { from: 'plans', localField: 'purchased_planId', foreignField: '_id', as: 'planDetails' },
+        { from: 'plans', localField: 'purchased_planId', foreignField: '_id', as: 'planLookup' },
       ],
-      unwindFields: ['$userDetails', '$venueDetails', '$planDetails'],
+      unwindFields: ['$userDetails', '$venueDetails', '$planLookup'],
     },
   );
 
   const data = result.data.map((item) => {
     const subscriber = item.userDetails || item.venueDetails;
+    const storedPlan = item.planDetails && Object.keys(item.planDetails).length
+      ? item.planDetails
+      : null;
+
     return {
       _id: item._id,
       userId: item.userId,
       purchased_planId: item.purchased_planId,
       amount: item.amount,
+      currency: item.currency,
       status: item.status,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
-      planDetails: item.planDetails,
+      transactionId: item.transactionId,
+      invoiceId: item.invoiceId,
+      invoiceUrl: item.invoiceUrl,
+      stripe_fee: item.stripe_fee,
+      net_amount: item.net_amount,
+      interval: storedPlan?.interval || null,
+      planDetails: storedPlan
+        ? storedPlan
+        : item.planLookup
+          ? {
+              _id: item.planLookup._id,
+              name: item.planLookup.name,
+              plan_type: item.planLookup.plan_type,
+            }
+          : null,
       subscriberInfo: subscriber
         ? {
             _id: subscriber._id,

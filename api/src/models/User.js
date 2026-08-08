@@ -62,8 +62,9 @@ module.exports = (mongoose) => {
       },
 
       isVerified: {
-        type: Boolean,
-        default: false,
+        type: String,
+        enum: ["Y", "N"],
+        default: "N",
       },
 
       verificationCode: String,
@@ -91,7 +92,7 @@ module.exports = (mongoose) => {
 
       approvalStatus: {
         type: String,
-        enum: ["pending", "completed", "rejected"],
+        enum: ["pending", "approved", "rejected", "completed"],
         default: "completed",
       },
 
@@ -140,6 +141,17 @@ module.exports = (mongoose) => {
       subscriptionId: {
         type: Schema.Types.ObjectId,
         ref: "subscriptions",
+      },
+
+      freePlanBuy: {
+        type: Boolean,
+        default: false,
+      },
+
+      validUpto: Date,
+
+      customer_id: {
+        type: String,
       },
     },
     {

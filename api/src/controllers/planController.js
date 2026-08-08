@@ -65,6 +65,19 @@ module.exports = {
     }
   },
 
+  changeStatus: async (req, res, next) => {
+    try {
+      const { id, status } = req.body;
+      if (!id || !status) {
+        return res.status(400).json({ success: false, message: 'id and status are required' });
+      }
+      await planService.changeStatus({ id, status });
+      return response.success(null, 'Plan status updated successfully', req, res);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   deletePlan: async (req, res, next) => {
     try {
       let id;

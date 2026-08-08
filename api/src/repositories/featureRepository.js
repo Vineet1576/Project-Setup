@@ -51,7 +51,7 @@ exports.findPlansUsingFeature = async (featureId) => {
 };
 
 exports.findAllWithPagination = async (filters) => {
-  const { search, sortBy, status, page, count, isDeleted } = filters;
+  const { search, sortBy, status, page = 1, count = 10, isDeleted } = filters;
   const match = {};
   match.isDeleted = isDeleted === 'true';
   if (status) match.status = status;

@@ -1,4 +1,4 @@
-// const html_to_pdf = require("html-pdf-node");
+const html_to_pdf = require("html-pdf-node");
 const fs = require('fs').promises;
 const path = require('path');
 const db = require('../models');
@@ -420,10 +420,16 @@ const handlePostPaymentTasks = async (
   plan,
   sub,
   validDate,
-  userModel = 'users',
 ) => {
   try {
     const amount = session.amount_total ? session.amount_total / 100 : 0;
+    const stripeFee = session.amount_total
+      ? Number((amount * 0.029 + 0.3).toFixed(2))
+      : 0;
+    const netAmount = Number((amount - stripeFee).toFixed(2));
+    const entityId = entity?.id || entity?._id;
+    const planId = plan?.id || plan?._id;
+    const subId = sub?.id || sub?._id;
     const directoryPath = path.join(__dirname, '../../public/invoices');
     const fileName = `invoice_${session.id}.pdf`;
     const filePath = path.join(directoryPath, fileName);
@@ -455,27 +461,22 @@ const handlePostPaymentTasks = async (
       }
     }
 
-    const entityUpdate =
-      userModel === 'users'
-        ? db.users.findByIdAndUpdate(entity._id, {
-            $set: { planId: plan._id, subscriptionId: sub._id },
-          })
-        : db.organization?.findByIdAndUpdate(entity._id, {
-            $set: { planId: plan._id, subscriptionId: sub._id },
-          });
+    const entityUpdate = db.users.findByIdAndUpdate(entityId, {
+      $set: { planId, subscriptionId: subId },
+    });
 
     const transactionService = require('../services/transactionService');
 
     await Promise.all([
       entityUpdate,
-      db.subscriptions.findByIdAndUpdate(sub._id, {
+      db.subscriptions.findByIdAndUpdate(subId, {
         $set: {
           invoice_pdf: savedPublicUrl,
         },
       }),
       transactionService.create({
-        userId: entity._id,
-        purchased_planId: plan._id,
+        userId: entityId,
+        purchased_planId: planId,
         amount: Number(amount),
         status: session.payment_status === 'paid' ? 'success' : 'pending',
         currency: session.currency || 'usd',
@@ -484,8 +485,24 @@ const handlePostPaymentTasks = async (
           session.metadata?.stripe_price_id || session.line_items?.data?.[0]?.price?.id || '',
         invoiceUrl: savedPublicUrl,
         type: plan.type,
-        subscriptionId: sub._id,
+        subscriptionId: subId,
+        planDetails: {
+          plan_id: planId,
+          name: plan.name,
+          plan_type: plan.plan_type,
+          interval: {
+            type: session.metadata?.interval_type || 'month',
+            interval_count: Number(session.metadata?.interval_count || 1),
+          },
+          unit_amount: Number(session.metadata?.unit_amount || amount),
+          currency: session.currency || 'usd',
+        },
+        stripe_fee: stripeFee,
+        net_amount: netAmount,
       }),
+    ]);
+
+    await Promise.allSettled([
       customerPlanPurchaseEmail({
         name: entity.fullName || entity.name || 'Customer',
         email: entity.email,
@@ -502,19 +519,19 @@ const handlePostPaymentTasks = async (
         type: plan.type,
       }),
       notificationService.createNotification({
-        userId: entity._id,
+        userId: entityId,
         type: session.payment_status === 'paid' ? 'payment_success' : 'payment_failed',
         title: session.payment_status === 'paid' ? 'Payment successful' : 'Payment failed',
         message: session.payment_status === 'paid'
           ? `Your ${plan.name} subscription is now active.`
           : `Payment for ${plan.name} requires attention.`,
-        metadata: { planId: plan._id, subscriptionId: sub._id },
+        metadata: { planId, subscriptionId: subId },
       }),
       notificationService.notifyAdmins({
         type: 'subscription_reminder',
         title: 'New subscription purchase',
         message: `${entity.fullName || entity.name} subscribed to ${plan.name}.`,
-        metadata: { userId: entity._id, planId: plan._id, subscriptionId: sub._id },
+        metadata: { userId: entityId, planId, subscriptionId: subId },
       }),
     ]);
   } catch (error) {

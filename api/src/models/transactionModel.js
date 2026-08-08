@@ -41,6 +41,25 @@ module.exports = (mongoose) => {
         type: Schema.Types.ObjectId,
         ref: "subscriptions",
       },
+      transactionId: {
+        type: String,
+        index: true,
+      },
+      invoiceId: {
+        type: String,
+      },
+      planDetails: {
+        type: Object,
+        default: {},
+      },
+      stripe_fee: {
+        type: Number,
+        default: 0,
+      },
+      net_amount: {
+        type: Number,
+        default: 0,
+      },
       isDeleted: {
         type: Boolean,
         default: false,

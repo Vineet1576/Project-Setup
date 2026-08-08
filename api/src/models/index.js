@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+﻿const mongoose = require("mongoose");
 
 const db = {};
 
@@ -12,5 +12,7 @@ db.plan = require("./planModel")(mongoose);
 db.subscriptions = require("./subscriptionModel")(mongoose);
 db.transactions = require("./transactionModel")(mongoose);
 db.notifications = require("./notification.model")(mongoose);
+db.faqs = require("./faqModel")(mongoose);
+db.settings = require("./settingModel")(mongoose);
 
 module.exports = db;

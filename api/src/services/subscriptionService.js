@@ -1,5 +1,4 @@
 const { planRepo, subscriptionRepo, featureRepo, userRepo } = require("../repositories");
-const moment = require("moment");
 const constants = require("../utils/constants");
 const mongoose = require("mongoose");
 const { customerPlanPurchaseEmail } = require("../Emails/stripeEmails");
@@ -7,15 +6,9 @@ const helper = require("../utils/helpers");
 
 const db = require("../models");
 const ObjectId = mongoose.Types.ObjectId;
+const { getStripe } = require("../utils/stripeConfig");
 
-let _stripe;
-const getStripe = () => {
-  if (!_stripe)
-    _stripe = require("stripe")(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder");
-  return _stripe;
-};
-
-const getSubscriber = (item) => item.userDetails || item.venueDetails;
+const getSubscriber = (item) => item.userDetails;
 
 const filterBySearch = (data, search, extraFields = []) => {
   if (!search) return data;
@@ -33,13 +26,15 @@ const filterBySearch = (data, search, extraFields = []) => {
 const cancelStripeSubscription = async (data) => {
   console.log("Canceling subscription:", data.stripe_subscription_id);
 
-  const getSubscription = await getStripe().subscriptions.retrieve(data.stripe_subscription_id);
+  const stripeClient = await getStripe();
+
+  const getSubscription = await stripeClient.subscriptions.retrieve(data.stripe_subscription_id);
 
   if (!getSubscription) throw "Subscription not found";
 
   if (getSubscription.status === "canceled") return { proration_amount: 0 };
 
-  const subscription = await getStripe().subscriptions.update(data.stripe_subscription_id, {
+  const subscription = await stripeClient.subscriptions.update(data.stripe_subscription_id, {
     cancel_at_period_end: false,
     proration_behavior: "create_prorations",
   });
@@ -47,7 +42,7 @@ const cancelStripeSubscription = async (data) => {
   let totalProrationAmount = 0;
 
   try {
-    const invoice = await getStripe().invoices.retrieve(subscription.latest_invoice);
+    const invoice = await stripeClient.invoices.retrieve(subscription.latest_invoice);
     const prorationItems = invoice.lines.data.filter((line) => line.proration);
     if (prorationItems.length > 0) {
       totalProrationAmount =
@@ -63,13 +58,8 @@ const cancelStripeSubscription = async (data) => {
 const createCheckoutSession = async (data) => {
   const getPlan = await planRepo.findDetail(data.plan_id);
 
-  let getEntity = await db.organization?.findOne({ _id: new ObjectId(data.venueId), isDeleted: false }).lean();
-  if (!getEntity) {
-    const user = await userRepo.findById(data.userId);
-    getEntity = user;
-  }
-
-  if (!getEntity) throw "Subscriber entity not found";
+  const getEntity = await userRepo.findById(data.userId);
+  if (!getEntity) throw "Subscriber user not found";
 
   const selectedPrice = getPlan.pricing.find(
     (price) => price.stripe_price_id === data.stripe_price_id,
@@ -80,10 +70,7 @@ const createCheckoutSession = async (data) => {
 
   const existingSubscriptions = await db.subscriptions
     .find({
-      $or: [
-        { userId: new ObjectId(data.userId) },
-        { venueId: new ObjectId(data.userId) },
-      ],
+      userId: new ObjectId(data.userId),
       status: "active",
       isDeleted: false,
     })
@@ -98,7 +85,7 @@ const createCheckoutSession = async (data) => {
   }
 
   const metadata = {
-    userId: String(data.userId ?? data.venueId),
+    userId: String(data.userId),
     planId: String(data.plan_id),
     stripe_price_id: String(data.stripe_price_id),
     unit_amount: String(selectedPrice.unit_amount),
@@ -134,20 +121,21 @@ const createCheckoutSession = async (data) => {
     checkoutParams.customer_email = getEntity.email || data.email;
   }
 
-  return getStripe().checkout.sessions.create(checkoutParams);
+  const stripeClient = await getStripe();
+  return stripeClient.checkout.sessions.create(checkoutParams);
 };
 
 exports.purchaseSubscription = async (data) => {
-  const { plan_id, organizationId, email, dispensary, stripe_price_id, interval } = data;
+  const { plan_id, userId, email, dispensary, stripe_price_id, interval } = data;
 
   const planObjectId = new ObjectId(plan_id);
-  const orgObjectId = new ObjectId(organizationId);
+  const userObjectId = new ObjectId(userId);
 
-  const checkOrganization = await db.organization?.findOne({ _id: orgObjectId, isDeleted: false }).lean();
-  if (!checkOrganization) throw "Invalid organization account";
+  const checkUser = await db.users.findOne({ _id: userObjectId, isDeleted: false }).lean();
+  if (!checkUser) throw "Invalid user account";
 
   const existingSubscription = await subscriptionRepo.findOne(
-    { status: "active", venueId: orgObjectId },
+    { status: "active", userId: userObjectId },
     { populate: "plan_id" },
   );
 
@@ -155,14 +143,14 @@ exports.purchaseSubscription = async (data) => {
   if (!getPlan) throw "Plan not found";
 
   if (getPlan.plan_type === "free") {
-    if (checkOrganization.freePlanBuy) throw constants.SUBSCRIPTION.NOT_FREE_PLAN;
+    if (checkUser.freePlanBuy) throw constants.SUBSCRIPTION.NOT_FREE_PLAN;
 
     if (existingSubscription && existingSubscription.plan_id?.plan_type === "paid") {
       await cancelStripeSubscription(existingSubscription);
     }
 
     await subscriptionRepo.updateMany(
-      { status: "active", venueId: orgObjectId },
+      { status: "active", userId: userObjectId },
       { status: "cancel" },
     );
 
@@ -175,36 +163,58 @@ exports.purchaseSubscription = async (data) => {
       unit_amount: 0,
       valid_from: now,
       valid_upto: validUpto,
-      venueId: orgObjectId,
-      userId: null,
-      organizationId,
+      userId: userObjectId,
       email,
+      interval: data.interval || { type: "month", interval_count: 1 },
     };
 
     const newSubscription = await subscriptionRepo.create(subData);
 
-    await db.organization?.findOneAndUpdate(
-      { _id: orgObjectId, isDeleted: false },
+    await db.users.findOneAndUpdate(
+      { _id: userObjectId, isDeleted: false },
       {
         $set: {
           freePlanBuy: true,
           planId: planObjectId,
-          stripe_subscriptionId: null,
-          Subscription_id: newSubscription.id,
+          subscriptionId: newSubscription.id,
           validUpto,
         },
       },
     );
 
+    const transactionService = require("./transactionService");
+    await transactionService.create({
+      userId: userObjectId,
+      purchased_planId: planObjectId,
+      amount: 0,
+      status: "success",
+      currency: "usd",
+      stripe_session_id: "",
+      stripe_payment_id: "",
+      invoiceUrl: "",
+      subscriptionId: newSubscription.id,
+      type: getPlan?.type,
+      planDetails: {
+        plan_id: planObjectId,
+        name: getPlan?.name,
+        plan_type: getPlan?.plan_type,
+        interval: data.interval || { type: "month", interval_count: 1 },
+        unit_amount: 0,
+        currency: "usd",
+      },
+      stripe_fee: 0,
+      net_amount: 0,
+    });
+
     customerPlanPurchaseEmail({
-      name: checkOrganization?.organizationName || checkOrganization?.name,
-      email: checkOrganization?.email,
+      name: checkUser?.fullName || checkUser?.name,
+      email: checkUser?.email,
       planName: getPlan?.name,
       planPrice: 0,
       planValidity: "30 Days",
     });
 
-    return { unit_amount: 0, valid_from: now, valid_upto: validUpto, venueId: orgObjectId };
+    return { unit_amount: 0, valid_from: now, valid_upto: validUpto, userId: userObjectId };
   }
 
   const sessionData = { ...data, plan_id: planObjectId };
@@ -223,22 +233,20 @@ exports.purchaseSubscription = async (data) => {
     } else if (existingSubscription.plan_id?.plan_type === "free") {
       await subscriptionRepo.updateOne({ _id: existingSubscription.id }, { status: "cancel" });
 
-      await db.organization?.findOneAndUpdate(
-        { _id: orgObjectId, isDeleted: false },
+      await db.users.findOneAndUpdate(
+        { _id: userObjectId, isDeleted: false },
         {
           $set: {
             freePlanBuy: false,
             planId: null,
-            Subscription_id: null,
-            stripe_subscriptionId: null,
+            subscriptionId: null,
           },
         },
       );
     }
   }
 
-  sessionData.venueId = orgObjectId.toString();
-  sessionData.userId = null;
+  sessionData.userId = userObjectId.toString();
 
   if (dispensary) {
     sessionData.dispensary = new ObjectId(dispensary);
@@ -263,7 +271,7 @@ exports.cancelSubscription = async ({ id }) => {
     );
 
     if (!updatedEntity) {
-      await db.organization?.findOneAndUpdate(
+      updatedEntity = await db.users.findOneAndUpdate(
         { _id: getSubscription.userId, isDeleted: false },
         { $set: { proration_amount: cancelSub.proration_amount } },
       );
@@ -341,5 +349,6 @@ exports.listSubscriptions = async (params) => {
 };
 
 exports.retrieveCustomerBalance = async (customerId) => {
-  return getStripe().customers.retrieve(customerId);
+  const stripeClient = await getStripe();
+  return stripeClient.customers.retrieve(customerId);
 };

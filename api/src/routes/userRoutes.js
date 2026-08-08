@@ -24,6 +24,7 @@ router.put("/reset-password", user.resetPassword);
 router.post("/add-user", user.addUser);
 
 router.put("/approval-status", user.changeApprovalStatus);
+router.put("/change-status", user.changeStatus);
 router.delete("/delete", user.deleteUser);
 
 router.get("/resend-verification", user.resendVerificationEmail);

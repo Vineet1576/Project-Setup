@@ -14,6 +14,17 @@ module.exports = {
     }
   },
 
+  analytics: async (req, res, next) => {
+    try {
+      const params = req.decryptedParams || req.query;
+      const result = await transactionService.analytics(params);
+
+      return response.success(result, 'Transaction analytics fetched successfully', req, res);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   sendInvoice: async (req, res, next) => {
     try {
       const { id } = req.decryptedParams || req.body;

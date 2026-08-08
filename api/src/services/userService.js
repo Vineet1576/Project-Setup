@@ -14,8 +14,10 @@ const signToken = (payload, expiresIn) =>
     expiresIn: expiresIn || process.env.JWT_EXPIRES_IN || "7d",
   });
 
+const USER_LOGIN_PRESERVE = ["role", "planId", "subscriptionId"];
+
 const validateAge = (dob) => {
-  if (!dob) throw "Date of birth is required";
+  if (!dob) return;
   const birthDate = new Date(dob);
   if (isNaN(birthDate.getTime())) throw "Invalid date of birth format";
   const today = new Date();
@@ -190,24 +192,29 @@ exports.adminLogin = async (data) => {
   await userRepo.updateById(user.id, updateData);
 
   const token = signToken({ id: user.id, role: user.role?.id, roleName: user.role?.name || "" });
-  return { ...user, access_token: token };
+  return { ...helper.omit(user, ["password", "verificationCode"]), access_token: token };
 };
 
 exports.userLogin = async (data) => {
   const email = helper.trimAndLowercase(data.email);
   const password = data.password;
 
-  const user = await userRepo.findByEmail(email);
+  const user = await userRepo.findByEmail(email, {
+    populate: userRepo.USER_LOGIN_POPULATE,
+    preserveObjects: USER_LOGIN_PRESERVE,
+  });
   if (!user) throw new Error(constants.onBoarding.WRONG_CREDENTIALS);
 
-  const role = await roleRepo.findById(user.role);
-  if (!role?.addedBy) throw new Error("Admin staff not allowed to login on user portal");
+  const roleName =
+    user.role?.name ||
+    (await roleRepo.findById(user.role?.id || user.role))?.name;
+  if (roleName !== 'user') throw new Error("Admin staff not allowed to login on user portal");
 
   if (user.isVerified === "N") throw new Error(constants.onBoarding.USER_NOT_VERIFIED);
   if (user.status === "deactive" || user.status === "inactive") throw new Error(constants.onBoarding.USERNAME_INACTIVE);
   if (user.approvalStatus === "pending") throw new Error("Account is under admin review");
   if (user.approvalStatus === "rejected") throw new Error("Account is rejected by admin");
-  if (!bcrypt.compareSync(password, user.password)) throw new Error(constants.onBoarding.WRONG_PASSWORD);
+  if (await !bcrypt.compareSync(password, user.password)) throw new Error(constants.onBoarding.WRONG_PASSWORD);
 
   const updateData = { lastLoginDate: new Date(), userlogin: true };
 
@@ -218,7 +225,7 @@ exports.userLogin = async (data) => {
   await userRepo.updateById(user.id, updateData);
 
   const token = signToken({
-    id: user.id, role: user.role?.id, roleName: user.role?.name || "",
+    id: user.id, role: user.role?.id || user.role, roleName: user.role?.name || "",
     type: "user", email: user.email, loginType: "user",
   });
 
@@ -233,7 +240,10 @@ exports.userLoginApp = async (data) => {
   if (!email) throw new Error("Email is required");
   if (!password) throw new Error("Password is required");
 
-  const user = await userRepo.findByEmail(email);
+  const user = await userRepo.findByEmail(email, {
+    populate: userRepo.USER_LOGIN_POPULATE,
+    preserveObjects: USER_LOGIN_PRESERVE,
+  });
   if (!user) throw new Error("Email does not exist");
   if (user.role?.name === "Guide" && user.approvalStatus === "pending") throw new Error("Account is under company review");
   if (user.role?.name === "admin") throw new Error("Only app users can login here");
@@ -244,8 +254,8 @@ exports.userLoginApp = async (data) => {
   if (deviceToken) {
     await userRepo.pushDeviceToken(user.id, deviceToken);
     await userRepo.updateById(user.id, { islogin: data.islogin, lastLoginDate: new Date() });
-    const token = signToken({ id: user.id, role: user.role?.id, roleName: user.role?.name || "" });
-    return { ...user, access_token: token };
+    const token = signToken({ id: user.id, role: user.role?.id || user.role, roleName: user.role?.name || "" });
+    return { ...helper.omit(user, ["password", "verificationCode"]), access_token: token };
   }
 
   if (user.isVerified === "N") {
@@ -255,12 +265,12 @@ exports.userLoginApp = async (data) => {
       otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
     });
     await Emails.verificationOtp({ email, otp, userId: user.id, fullName: user.fullName });
-    return helper.omit(user, ["password"]);
+    return helper.omit(user, ["password", "verificationCode"]);
   }
 
   await userRepo.updateById(user.id, { lastLoginDate: new Date() });
-  const token = signToken({ id: user.id, role: user.role?.id, roleName: user.role?.name || "" });
-  return { ...user, access_token: token };
+  const token = signToken({ id: user.id, role: user.role?.id || user.role, roleName: user.role?.name || "" });
+  return { ...helper.omit(user, ["password", "verificationCode"]), access_token: token };
 };
 
 exports.autoLogin = async (data) => {
@@ -268,7 +278,8 @@ exports.autoLogin = async (data) => {
 
   const user = await userRepo.findById(id, {
     select: "-password -verificationCode -deviceTokens -isDeleted -preferences",
-    populate: { path: "role", select: "name" },
+    populate: userRepo.USER_LOGIN_POPULATE,
+    preserveObjects: USER_LOGIN_PRESERVE,
   });
 
   if (!user) throw "Invalid credentials.";
@@ -277,7 +288,7 @@ exports.autoLogin = async (data) => {
   await userRepo.updateById(id, { lastLoginDate: new Date() });
 
   const token = signToken({
-    id: user.id, role: user.role?.id, roleName: user.role?.name || "",
+    id: user.id, role: user.role?.id || user.role, roleName: user.role?.name || "",
     type: "user", email: user.email, loginType: "auto",
   });
 
@@ -289,21 +300,11 @@ exports.userProfile = async (data) => {
 
   const user_data = await userRepo.findById(id, {
     select: "-password -verificationCode -deviceTokens",
-    populate: [
-      { path: "role", select: "name" },
-      { path: "planId", select: "name plan_type pricing numberOfDays maxDispensaries" },
-      { path: "Subscription_id", select: "plan_id stripe_price_id userId status valid_upto" },
-    ],
+    populate: userRepo.USER_LOGIN_POPULATE,
+    preserveObjects: USER_LOGIN_PRESERVE,
   });
 
   if (!user_data) throw constants.onBoarding.USER_NOT_FOUND;
-
-  const roleName = user_data.role?.name || "";
-  if (!/^sub-admin$/i.test(roleName)) {
-    const locationDetails = helper.getStateAndCountryDetails(user_data.country || "", user_data.state || "");
-    user_data.stateName = locationDetails.stateName;
-    user_data.countryName = locationDetails.countryName;
-  }
 
   return user_data;
 };
@@ -469,6 +470,15 @@ exports.changeApprovalStatus = async (data) => {
   await userRepo.updateById(data.id, { approvalStatus: data.approvalStatus });
 };
 
+exports.changeStatus = async (data) => {
+  const { id, status } = data;
+  if (!id) throw "User ID is required";
+  if (!status) throw "Status is required";
+  const user = await userRepo.findById(id);
+  if (!user) throw constants.onBoarding.USER_NOT_FOUND;
+  await userRepo.updateById(id, { status });
+};
+
 exports.deleteUser = async (data) => {
   const user = await userRepo.findById(data.id);
   if (!user) throw constants.onBoarding.USER_NOT_FOUND;
@@ -496,9 +506,17 @@ exports.resendVerificationEmail = async (data) => {
   const user = await userRepo.findOne({ email, isDeleted: false, isVerified: "N" });
   if (!user) throw "User not exist or email already verified";
 
-  await Emails.loginCredentials({
-    email: user.email, firstName: user.firstName, lastName: user.lastName,
-    fullName: user.fullName, id: user.id, role: user.role, isVerified: user.isVerified,
+  const otp = helper.generateVerificationCode(4);
+  await userRepo.updateById(user.id, {
+    verificationOtp: otp,
+    otpExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
+  });
+  await Emails.verificationOtp({
+    email: user.email,
+    otp,
+    userId: user.id,
+    id: user.id,
+    fullName: user.fullName,
   });
 };
 

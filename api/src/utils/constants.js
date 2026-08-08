@@ -1,4 +1,4 @@
-module.exports = {
+﻿module.exports = {
   onBoarding: {
     LOGIN_SUCCESS: 'Login successfully.',
     CURRENT_PASSWORD: 'Current password is wrong',
@@ -70,6 +70,8 @@ module.exports = {
     DELETED: 'Contact request deleted successfully.',
     LISTING: 'Contact requests fetched successfully.',
     STATUS_CHANGED: 'Contact request status changed successfully.',
+    NOT_FOUND_EMAIL: 'The contact request has no email address to reply to.',
+    REPLIED: 'Reply sent to the user successfully.',
   },
   CONTENT_MANAGEMENT: {
     ALREADY_EXIST: 'Content with this title already exists.',
@@ -125,5 +127,23 @@ module.exports = {
     NAME_REQUIRED: 'Role name is required.',
     CANNOT_DELETE_SYSTEM: 'System roles cannot be deleted.',
     CANNOT_DEACTIVATE_SYSTEM: 'System roles cannot be deactivated.',
+  },
+  FAQ: {
+    FETCHED: 'FAQs fetched successfully.',
+    CATEGORIES_FETCHED: 'FAQ categories fetched successfully.',
+    FETCHED: 'FAQs fetched successfully.',
+    NOT_FOUND: 'FAQ not found.',
+    CREATED: 'FAQ created successfully.',
+    UPDATED: 'FAQ updated successfully.',
+    DELETED: 'FAQ deleted successfully.',
+    STATUS_CHANGED: 'FAQ status changed successfully.',
+    ID_REQUIRED: 'FAQ ID is required.',
+    PAYLOAD_MISSING: 'Category, question and answer are required.',
+  },
+  SETTINGS: {
+    FETCHED: 'Settings fetched successfully.',
+    UPDATED: 'Settings updated successfully.',
+    NOT_FOUND: 'Settings not found.',
+    PAYLOAD_MISSING: 'No settings provided to update.',
   },
 };

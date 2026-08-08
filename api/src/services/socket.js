@@ -150,11 +150,4 @@ const emitToUser = (userId, event, data) => {
   _io.to(room('user', userId)).emit(event, data);
 };
 
-const emitToConversation = (conversationId, event, data) => {
-  if (!_io) return;
-  _io.to(room('conversation', conversationId)).emit(event, data);
-};
-
-const getUserStatus = (userId) => userStatuses.get(userId) || 'offline';
-
-module.exports = { registerSocket, emitToUser, emitToConversation, getUserStatus };
+module.exports = { registerSocket, emitToUser };

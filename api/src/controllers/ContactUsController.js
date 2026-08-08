@@ -63,4 +63,14 @@ module.exports = {
       next(err);
     }
   },
+
+  reply: async (req, res, next) => {
+    try {
+      const { id, message } = req.body;
+      await contactUsService.reply({ id, message });
+      return response.success(null, constants.ContactUs.REPLIED, req, res);
+    } catch (err) {
+      next(err);
+    }
+  },
 };

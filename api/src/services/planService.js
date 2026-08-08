@@ -5,7 +5,7 @@ const helper = require("../utils/helpers");
 
 const db = require("../models");
 
-const getStripe = () => require("stripe")(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder");
+const { getStripe } = require("../utils/stripeConfig");
 
 const findPlanOrThrow = async (id, trim) => {
   const planId = trim ? id.trim() : id;
@@ -99,7 +99,9 @@ exports.createPlan = async (data) => {
     }
   }
 
-  const product = await getStripe().products.create({
+  const stripeClient = await getStripe();
+
+  const product = await stripeClient.products.create({
     name: data.name,
     images: data.images || [`${process.env.BACK_WEB_URL}/static/main.png`],
   });
@@ -112,7 +114,7 @@ exports.createPlan = async (data) => {
     }
     if (itm.currency !== "usd") itm.currency = "usd";
 
-    const price = await getStripe().prices.create({
+    const price = await stripeClient.prices.create({
       product: product.id,
       unit_amount: Math.round(itm.unit_amount * 100),
       currency: itm.currency || "usd",
@@ -138,10 +140,7 @@ exports.planDetail = async ({ id, userId }) => {
 
   const objectId = new mongoose.Types.ObjectId(userId);
 
-  let entityDetail = await db.organization?.findOne({ _id: objectId, isDeleted: false }).lean();
-  if (!entityDetail) {
-    entityDetail = await db.users.findOne({ _id: objectId, isDeleted: false }).lean();
-  }
+  let entityDetail = await db.users.findOne({ _id: objectId, isDeleted: false }).lean();
 
   if (!entityDetail) return plan;
 
@@ -202,10 +201,7 @@ exports.getAllPlans = async (params) => {
   if (userId) {
     const objectId = new mongoose.Types.ObjectId(userId);
 
-    entityDetail = await db.organization?.findOne({ _id: objectId, isDeleted: false }).lean();
-    if (!entityDetail) {
-      entityDetail = await db.users.findOne({ _id: objectId, isDeleted: false }).lean();
-    }
+    entityDetail = await db.users.findOne({ _id: objectId, isDeleted: false }).lean();
 
     if (entityDetail) {
       activeSubscriptions = await db.subscriptions
@@ -301,6 +297,13 @@ exports.updatePlan = async (data) => {
   await planRepo.updateOne(id, updateData);
 };
 
+exports.changeStatus = async ({ id, status }) => {
+  if (!id) throw "Plan ID is required";
+  if (!status) throw "Status is required";
+  await findPlanOrThrow(id, true);
+  await planRepo.updateOne(id, { status });
+};
+
 exports.deletePlan = async ({ id }) => {
   const exists = await findPlanOrThrow(id, true);
 
@@ -311,12 +314,13 @@ exports.deletePlan = async ({ id }) => {
 
   if (exists.plan_type === "paid") {
     const stripeErrors = [];
+    const stripeClient = await getStripe();
 
     if (exists.pricing && Array.isArray(exists.pricing)) {
       for (const obj of exists.pricing) {
         if (!obj.stripe_price_id) continue;
         try {
-          await getStripe().prices.update(obj.stripe_price_id, { active: false });
+          await stripeClient.prices.update(obj.stripe_price_id, { active: false });
         } catch (stripeError) {
           stripeErrors.push({ priceId: obj.stripe_price_id, error: stripeError.message });
         }
@@ -325,7 +329,7 @@ exports.deletePlan = async ({ id }) => {
 
     if (exists.stripe_product_id) {
       try {
-        await getStripe().products.update(exists.stripe_product_id, { active: false });
+        await stripeClient.products.update(exists.stripe_product_id, { active: false });
       } catch (stripeError) {
         stripeErrors.push({ productId: exists.stripe_product_id, error: stripeError.message });
       }

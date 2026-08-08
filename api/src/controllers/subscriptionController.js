@@ -2,13 +2,9 @@ const constants = require("../utils/constants");
 const response = require("../utils/response");
 const Validations = require("../validations");
 const subscriptionService = require("../services/subscriptionService");
-const mongoose = require("mongoose");
 const { transactionRepo, planRepo, subscriptionRepo, userRepo } = require("../repositories");
-const db = require("../models");
 const { handlePostPaymentTasks } = require("../utils/invoices");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY || "sk_test_placeholder");
-
-const ObjectId = mongoose.Types.ObjectId;
+const { getStripe, resolveStripeConfig } = require("../utils/stripeConfig");
 
 module.exports = {
   purchaseSubscription: async (req, res, next) => {
@@ -21,7 +17,7 @@ module.exports = {
 
       const data = {
         ...req.body,
-        organizationId: req.identity.id,
+        userId: req.identity.id,
         email: req.identity.email,
       };
 
@@ -107,7 +103,9 @@ module.exports = {
 
   webhook: async (req, res) => {
     const sig = req.headers["stripe-signature"];
-    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    const { webhookSecret } = await resolveStripeConfig();
+    const stripe = await getStripe();
+    const endpointSecret = webhookSecret;
 
     let event;
     if (endpointSecret) {
@@ -137,8 +135,15 @@ module.exports = {
 
     try {
       const checkoutSession = event.data.object;
-      const { planId, userId, stripe_price_id, unit_amount, currency } =
-        checkoutSession.metadata;
+      const {
+        planId,
+        userId,
+        stripe_price_id,
+        unit_amount,
+        currency,
+        interval_type,
+        interval_count,
+      } = checkoutSession.metadata;
 
       if (!planId || !userId) {
         return res.status(200).json({ received: true });
@@ -157,15 +162,7 @@ module.exports = {
         return res.status(200).json({ received: true });
       }
 
-      let entityDetail = await userRepo.findById(userId);
-      let userModel = "users";
-
-      if (!entityDetail) {
-        entityDetail = await db.organization
-          ?.findOne({ _id: new ObjectId(userId), isDeleted: false })
-          .lean();
-        if (entityDetail) userModel = "organization";
-      }
+      const entityDetail = await userRepo.findById(userId);
 
       if (!entityDetail) {
         console.error(`Subscriber not found: ${userId}`);
@@ -204,6 +201,10 @@ module.exports = {
         stripe_subscription_id: checkoutSession.subscription,
         valid_upto: valid_date,
         status: "active",
+        interval: {
+          type: interval_type || "month",
+          interval_count: Number(interval_count || 1),
+        },
       };
 
       let newSubscription;
@@ -218,16 +219,10 @@ module.exports = {
         newSubscription = await subscriptionRepo.findOne({ stripe_subscription_id: checkoutSession.subscription });
       }
 
-      if (userModel === "users") {
-        await userRepo.updateById(entityDetail.id, {
-          planId: planDetail.id,
-          subscriptionId: newSubscription.id,
-        });
-      } else {
-        await db.organization?.findByIdAndUpdate(entityDetail.id, {
-          $set: { planId: planDetail.id, subscriptionId: newSubscription.id },
-        });
-      }
+      await userRepo.updateById(entityDetail.id, {
+        planId: planDetail.id,
+        subscriptionId: newSubscription.id,
+      });
 
       handlePostPaymentTasks(
         checkoutSession,
@@ -235,7 +230,6 @@ module.exports = {
         planDetail,
         newSubscription,
         valid_date,
-        userModel,
       ).catch((err) => console.error("Background Task Error:", err));
 
       return res.status(200).json({ received: true });

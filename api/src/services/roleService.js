@@ -48,17 +48,17 @@ exports.updateRole = async (req) => {
 };
 
 exports.getAllRoles = async (req) => {
-  const { page, limit, search, startDate, endDate } =
+  const { page, limit, search, startDate, endDate, status } =
     req.decryptedParams || req.query;
 
-  return roleRepo.findAll({ page, limit, search, startDate, endDate });
+  return roleRepo.findAll({ page, limit, search, startDate, endDate, status });
 };
 
 exports.changeStatus = async (req) => {
   const { id, status } = req.body;
   const role = await findRoleOrThrow(id);
 
-  if (role.isSystemRole && status === "deactive") {
+  if (role.isSystemRole && status === "inactive") {
     throw new Error(constants.ROLES.CANNOT_DEACTIVATE_SYSTEM);
   }
 

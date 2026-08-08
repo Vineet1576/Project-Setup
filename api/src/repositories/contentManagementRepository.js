@@ -49,7 +49,7 @@ exports.updateOne = async (id, data) => {
 };
 
 exports.findAllWithPagination = async (filters) => {
-  const { search, page, count, sortBy, title, status } = filters;
+  const { search, page = 1, count = 10, sortBy, title, status } = filters;
   const match = { isDeleted: false };
   if (title) match.title = title;
   if (status) match.status = status;

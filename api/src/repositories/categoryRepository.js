@@ -72,7 +72,7 @@ exports.findExisting = async ({ name, type, isParent, parentId }) => {
 };
 
 exports.findAllWithPagination = async (filters) => {
-  const { search, sortBy, page, count, status, type, isParent, parentId } = filters;
+  const { search, sortBy, page = 1, count = 10, status, type, isParent, parentId } = filters;
   const match = { isDeleted: false };
   if (status) match.status = status === 'deactive' ? 'inactive' : status;
   if (type) match.type = type;
@@ -115,7 +115,7 @@ exports.findAllWithPagination = async (filters) => {
 };
 
 exports.findSubCategories = async (filters) => {
-  const { search, sortBy, page, count, status, type, parentId, category } = filters;
+  const { search, sortBy, page = 1, count = 10, status, type, parentId, category } = filters;
   const match = { isDeleted: false, isParent: true };
   if (search) match.$or = [{ nameKey: { $regex: search.toLowerCase(), $options: 'i' } }];
   if (type) match.type = type;

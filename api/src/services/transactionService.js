@@ -4,7 +4,7 @@ const fs = require("fs").promises;
 const path = require("path");
 const helper = require("../utils/helpers");
 const { generateCustomInvoicePDF } = require("../utils/invoices");
-const { customerPlanPurchaseEmail } = require("../Emails/stripeEmails");
+const { customerPlanInvoiceEmail } = require("../Emails/stripeEmails");
 const db = require("../models");
 
 exports.create = async ({
@@ -18,6 +18,9 @@ exports.create = async ({
   invoiceUrl,
   subscriptionId,
   type,
+  planDetails,
+  stripe_fee,
+  net_amount,
 }) => {
   if (!userId) return null;
 
@@ -32,11 +35,108 @@ exports.create = async ({
     invoiceUrl: invoiceUrl || "",
     subscriptionId,
     type,
+    planDetails,
+    stripe_fee,
+    net_amount,
   });
 };
 
 exports.list = async (params) => {
   return transactionRepo.findAllWithPagination(params);
+};
+
+exports.analytics = async (params = {}) => {
+  const match = { isDeleted: false };
+  if (params.status) match.status = params.status;
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [totals, thisMonth, statusCounts, planTotals] = await Promise.all([
+    db.transactions.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: null,
+          totalCharged: { $sum: "$amount" },
+          totalFees: { $sum: "$stripe_fee" },
+          totalNet: { $sum: "$net_amount" },
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+    db.transactions.aggregate([
+      { $match: { ...match, createdAt: { $gte: startOfMonth } } },
+      {
+        $group: {
+          _id: null,
+          totalCharged: { $sum: "$amount" },
+          totalFees: { $sum: "$stripe_fee" },
+          totalNet: { $sum: "$net_amount" },
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+    db.transactions.aggregate([
+      { $match: match },
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]),
+    db.transactions.aggregate([
+      { $match: match },
+      {
+        $lookup: {
+          from: "plans",
+          localField: "purchased_planId",
+          foreignField: "_id",
+          as: "plan",
+        },
+      },
+      { $unwind: { path: "$plan", preserveNullAndEmptyArrays: true } },
+      {
+        $group: {
+          _id: "$plan.name",
+          totalCharged: { $sum: "$amount" },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { totalCharged: -1 } },
+      { $limit: 5 },
+    ]),
+  ]);
+
+  const row = (rows) => (rows && rows[0]) || { totalCharged: 0, totalFees: 0, totalNet: 0, count: 0 };
+  const all = row(totals);
+  const month = row(thisMonth);
+
+  const statusMap = {};
+  for (const s of statusCounts) statusMap[s._id || "other"] = s.count;
+
+  const totalNet = (all.totalCharged || 0) - (all.totalFees || 0);
+  const monthNet = (month.totalCharged || 0) - (month.totalFees || 0);
+
+  return {
+    totalCharged: Number((all.totalCharged || 0).toFixed(2)),
+    totalStripeFees: Number((all.totalFees || 0).toFixed(2)),
+    totalNetAmount: Number(totalNet.toFixed(2)),
+    totalTransactions: all.count || 0,
+    thisMonth: {
+      charged: Number((month.totalCharged || 0).toFixed(2)),
+      fees: Number((month.totalFees || 0).toFixed(2)),
+      net: Number(monthNet.toFixed(2)),
+      count: month.count || 0,
+    },
+    statusCounts: {
+      success: statusMap.success || 0,
+      pending: statusMap.pending || 0,
+      failed: statusMap.failed || 0,
+      cancelled: statusMap.cancelled || 0,
+    },
+    topPlans: planTotals.map((p) => ({
+      name: p._id || "Unknown",
+      totalCharged: Number((p.totalCharged || 0).toFixed(2)),
+      count: p.count || 0,
+    })),
+  };
 };
 
 exports.sendInvoice = async (transactionId) => {
@@ -85,12 +185,14 @@ exports.sendInvoice = async (transactionId) => {
     }
   }
 
-  await customerPlanPurchaseEmail({
+  await customerPlanInvoiceEmail({
     name: subscriber.fullName || subscriber.name || "Customer",
     email: subscriber.email,
     planName: plan?.name || "N/A",
     planPrice: Number(transaction.amount || 0),
-    planValidity: transaction.createdAt
+    currency: transaction.currency,
+    invoiceNumber: transaction.invoiceId || transaction.stripe_session_id || transaction._id,
+    invoiceDate: transaction.createdAt
       ? new Date(transaction.createdAt).toLocaleDateString("en-GB", {
           day: "2-digit",
           month: "long",
@@ -98,7 +200,6 @@ exports.sendInvoice = async (transactionId) => {
         })
       : "N/A",
     invoiceUrl: savedUrl,
-    type: transaction.type || plan?.type,
   });
 
   return { sent: true, email: subscriber.email, invoiceUrl: savedUrl };

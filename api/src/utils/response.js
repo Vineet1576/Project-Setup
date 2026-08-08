@@ -4,16 +4,22 @@ const { ENCRYPTION_IV, SECRET_KEY, CRYPTO_SECURE_ENCRYPTION } = process.env;
 const useCryptoSecure = CRYPTO_SECURE_ENCRYPTION === "true";
 
 const _encrypt = (data) => {
-  const cipher = forge.cipher.createCipher("AES-CBC", SECRET_KEY);
-  cipher.start({ iv: ENCRYPTION_IV });
+  const cipher = forge.cipher.createCipher(
+    "AES-CBC",
+    forge.util.createBuffer(SECRET_KEY, "utf8"),
+  );
+  cipher.start({ iv: forge.util.createBuffer(ENCRYPTION_IV, "utf8") });
   cipher.update(forge.util.createBuffer(JSON.stringify(data), "utf8"));
   cipher.finish();
   return cipher.output.toHex();
 };
 
 const _decrypt = (encrypted) => {
-  const decipher = forge.cipher.createDecipher("AES-CBC", SECRET_KEY);
-  decipher.start({ iv: ENCRYPTION_IV });
+  const decipher = forge.cipher.createDecipher(
+    "AES-CBC",
+    forge.util.createBuffer(SECRET_KEY, "utf8"),
+  );
+  decipher.start({ iv: forge.util.createBuffer(ENCRYPTION_IV, "utf8") });
   decipher.update(forge.util.createBuffer(forge.util.hexToBytes(encrypted)));
   decipher.finish();
   return JSON.parse(decipher.output.toString("utf8"));
@@ -107,17 +113,5 @@ exports.success = (payload = {}, message = "", req, res) => {
     code: statusCode,
     message,
     ...encryptedPayload,
-  });
-};
-
-exports.failed = (data = {}, message = "", req, res) => {
-  const statusCode = 400;
-  return res.status(statusCode).json({
-    success: false,
-    error: {
-      code: statusCode,
-      message,
-      data,
-    },
   });
 };

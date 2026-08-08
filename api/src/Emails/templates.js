@@ -3,6 +3,7 @@ const dotenv = require("dotenv");
 const db = require("../models/index");
 const fs = require("fs");
 const path = require("path");
+const { getSiteConfig } = require("./siteConfig");
 const Users = db.users;
 
 dotenv.config({ debug: false });
@@ -23,13 +24,15 @@ const baseStyle = {
   footer: "padding: 20px 30px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; background-color: #fafafa;",
 };
 
-const baseTemplate = (content) => `
+const baseTemplate = async (content) => {
+  const site = await getSiteConfig();
+  return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${process.env.PROJECT_NAME}</title>
+  <title>${site.siteName}</title>
 </head>
 <body style="${baseStyle.body}">
   <table width="100%" border="0" cellspacing="0" cellpadding="0" style="${baseStyle.wrapper}">
@@ -38,14 +41,14 @@ const baseTemplate = (content) => `
         <table width="560" border="0" cellspacing="0" cellpadding="0" style="${baseStyle.card}">
           <tr>
             <td style="${baseStyle.header}">
-              <img src="${BACK_WEB_URL}/img/logo.png" alt="${process.env.PROJECT_NAME} Logo" style="${baseStyle.logo}" />
+              <img src="${site.logoUrl}" alt="${site.siteName} Logo" style="${baseStyle.logo}" />
             </td>
           </tr>
           ${content}
           <tr>
             <td style="${baseStyle.footer}">
-              <p style="margin: 0 0 4px;">&copy; ${new Date().getFullYear()} ${process.env.PROJECT_NAME}. All rights reserved.</p>
-              <p style="margin: 0;">If you have questions, contact our support team.</p>
+              <p style="margin: 0 0 4px;">&copy; ${new Date().getFullYear()} ${site.siteName}. All rights reserved.</p>
+              ${site.supportEmail ? `<p style="margin: 0;">For help, contact our support team at <a href="mailto:${site.supportEmail}" style="color: #999;">${site.supportEmail}</a>.</p>` : '<p style="margin: 0;">If you have questions, contact our support team.</p>'}
             </td>
           </tr>
         </table>
@@ -54,14 +57,17 @@ const baseTemplate = (content) => `
   </table>
 </body>
 </html>`;
+};
 
-const expiredLinkHtml = `
+const expiredLinkHtml = async () => {
+  const site = await getSiteConfig();
+  return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Link Expired - ${process.env.PROJECT_NAME}</title>
+  <title>Link Expired - ${site.siteName}</title>
 </head>
 <body style="font-family: 'Inter', 'Segoe UI', Arial, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;">
   <div style="background: rgba(255,255,255,0.05); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 48px 40px; max-width: 420px; width: 90%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
@@ -73,9 +79,11 @@ const expiredLinkHtml = `
     <h1 style="color: #fff; font-size: 26px; margin: 0 0 12px; font-weight: 700;">Link Expired</h1>
     <p style="color: rgba(255,255,255,0.6); font-size: 15px; line-height: 1.6; margin: 0 0 32px;">The link you're trying to access is no longer valid. It may have expired or already been used.</p>
     <a href="${FRONT_WEB_URL}" style="display: inline-block; padding: 14px 36px; background: linear-gradient(135deg, #FFB800 0%, #FF9500 100%); color: #1a1a2e; font-weight: 700; text-decoration: none; border-radius: 10px; font-size: 15px;">Back to Dashboard</a>
+    ${site.supportEmail ? `<p style="color: rgba(255,255,255,0.5); font-size: 13px; margin: 24px 0 0;">Need help? Contact <a href="mailto:${site.supportEmail}" style="color: #FFB800; text-decoration: none;">${site.supportEmail}</a></p>` : ""}
   </div>
 </body>
 </html>`;
+};
 
 const forgotPasswordEmail = async (options) => {
   try {
@@ -88,16 +96,12 @@ const forgotPasswordEmail = async (options) => {
       isExpire,
     } = options;
 
-    let userData = await db.organization.findById(userId);
+    const site = await getSiteConfig();
+
+    let userData = await Users.findById(userId).populate("role").select("role");
 
     if (!userData) {
-      userData = await Users.findById(userId).populate("role").select("role");
-    }
-
-    if (!userData) {
-      console.error(
-        `User with ID ${userId} not found in Venue or Users collection.`,
-      );
+      console.error(`User with ID ${userId} not found.`);
       return;
     }
 
@@ -122,12 +126,12 @@ const forgotPasswordEmail = async (options) => {
       isExpire,
     });
 
-    const message = baseTemplate(`
+    const message = await baseTemplate(`
       <tr>
         <td style="${baseStyle.content}">
           <h2 style="${baseStyle.h2}">Reset Your Password</h2>
           <p style="${baseStyle.text}">Hi ${fullName},</p>
-          <p style="${baseStyle.text}">We received a request to reset the password for your <strong>${process.env.PROJECT_NAME}</strong> account. Click the button below to set a new one.</p>
+          <p style="${baseStyle.text}">We received a request to reset the password for your <strong>${site.siteName}</strong> account. Click the button below to set a new one.</p>
           <p style="${baseStyle.text}">This link will expire in <strong>24 hours</strong>.</p>
           <div style="text-align: center;">
             <a href="${BACK_WEB_URL}/users/ckeck?data=${encryptedData}" style="${baseStyle.btn}">Reset Password</a>
@@ -157,6 +161,8 @@ const add_user_email = async (options) => {
 
   const fullName = fullNameOpt || email;
 
+  const site = await getSiteConfig();
+
   const expiryDateFormatted = valid_upto
     ? new Date(valid_upto).toLocaleDateString("en-GB", {
         day: "2-digit",
@@ -184,7 +190,7 @@ const add_user_email = async (options) => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome to ${process.env.PROJECT_NAME}</title>
+  <title>Welcome to ${site.siteName}</title>
 </head>
 <body style="font-family: 'Inter', 'Segoe UI', Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 0;">
   <table width="100%" cellpadding="0" cellspacing="0" style="padding: 40px 16px;">
@@ -193,12 +199,12 @@ const add_user_email = async (options) => {
         <table width="560" cellpadding="0" cellspacing="0" style="background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06);">
           <tr>
             <td style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 36px 30px; text-align: center;">
-              <img src="${process.env.BACK_WEB_URL}/img/logo.png" alt="${process.env.PROJECT_NAME} Logo" style="max-width: 130px; width: 100%; display: block; margin: 0 auto;" />
+              <img src="${site.logoUrl}" alt="${site.siteName} Logo" style="max-width: 130px; width: 100%; display: block; margin: 0 auto;" />
             </td>
           </tr>
           <tr>
             <td style="padding: 36px 30px;">
-              <h2 style="margin: 0 0 4px; font-size: 22px; font-weight: 700; color: #1a1a2e; text-align: center;">Welcome to ${process.env.PROJECT_NAME}!</h2>
+              <h2 style="margin: 0 0 4px; font-size: 22px; font-weight: 700; color: #1a1a2e; text-align: center;">Welcome to ${site.siteName}!</h2>
               <p style="font-size: 16px; color: #1a1a2e; font-weight: 500; text-align: center; margin: 12px 0 20px;">Hi ${fullName},</p>
               <p style="font-size: 15px; line-height: 26px; color: #555; text-align: center; margin: 8px 0 24px;">
                 Your <strong>${roleName}</strong> account has been created. Below are your login credentials.
@@ -241,7 +247,7 @@ const add_user_email = async (options) => {
           </tr>
           <tr>
             <td style="padding: 20px 30px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; background-color: #fafafa;">
-              <p style="margin: 0 0 4px;">&copy; ${new Date().getFullYear()} ${process.env.PROJECT_NAME}. All rights reserved.</p>
+              <p style="margin: 0 0 4px;">&copy; ${new Date().getFullYear()} ${site.siteName}. All rights reserved.</p>
             </td>
           </tr>
         </table>
@@ -253,7 +259,7 @@ const add_user_email = async (options) => {
 
   await SmtpController.sendEmail(
     email,
-    `Your ${process.env.PROJECT_NAME} Account Details`,
+    `Your ${site.siteName} Account Details`,
     message,
   );
 };
@@ -267,26 +273,26 @@ const userVerifyLink = async (options) => {
   } = options;
   const fullName = fullNameOpt;
 
+  const site = await getSiteConfig();
+
   const verificationCode = Math.random().toString(36).substring(2, 12);
-  await db.organization.findByIdAndUpdate(userId, {
-    emailVerificationCode: verificationCode,
-    emailVerificationExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
+  await Users.findByIdAndUpdate(userId, {
+    verificationCode,
+    verificationCodeExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
   });
 
-  const encryptedData = await encryptData({
-    id: userId,
-    code: verificationCode,
-    expiresAt: Date.now() + 24 * 60 * 60 * 1000,
-  });
+  const verifyToken = Buffer.from(
+    JSON.stringify({ id: userId, code: verificationCode }),
+  ).toString("base64url");
 
-  const message = baseTemplate(`
+  const message = await baseTemplate(`
     <tr>
       <td style="${baseStyle.content}">
         <h2 style="${baseStyle.h2}">Verify Your Email</h2>
         <p style="${baseStyle.text}">Hi ${fullName},</p>
         <p style="${baseStyle.text}">Thanks for signing up! Please verify your email address by clicking the button below to activate your account.</p>
         <div style="text-align: center;">
-          <a href="${BACK_WEB_URL}/user/verify?data=${encryptedData}" style="${baseStyle.btn}">Verify Email Address</a>
+          <a href="${FRONT_WEB_URL}/verify-email?token=${verifyToken}" style="${baseStyle.btn}">Verify Email Address</a>
         </div>
         <p style="${baseStyle.text}; font-size: 13px; color: #999;">This link expires in 24 hours. If you didn't create an account, ignore this email.</p>
       </td>
@@ -294,8 +300,8 @@ const userVerifyLink = async (options) => {
   `);
 
   const subject = password
-    ? `Your ${process.env.PROJECT_NAME} Account Details & Verification`
-    : `Verify Your Email - ${process.env.PROJECT_NAME}`;
+    ? `Your ${site.siteName} Account Details & Verification`
+    : `Verify Your Email - ${site.siteName}`;
 
   await SmtpController.sendEmail(email, subject, message);
 };
@@ -304,6 +310,7 @@ const verificationOtp = async (options = {}) => {
   const email = options.email;
   if (!email) return;
   const fullName = options.firstName || options.fullName || email.split("@")[0];
+  const site = await getSiteConfig();
   await encryptData({ id: options.id });
   const otp = options.otp || "******";
 
@@ -313,7 +320,7 @@ const verificationOtp = async (options = {}) => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Account Verification - ${process.env.PROJECT_NAME}</title>
+  <title>Account Verification - ${site.siteName}</title>
 </head>
 <body style="font-family: 'Inter', 'Segoe UI', Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 0;">
   <table width="100%" cellpadding="0" cellspacing="0" style="padding: 40px 16px;">
@@ -322,7 +329,7 @@ const verificationOtp = async (options = {}) => {
         <table width="480" cellpadding="0" cellspacing="0" style="background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06);">
           <tr>
             <td style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 36px 30px; text-align: center;">
-              <img src="${BACK_WEB_URL}/static/App_logo.png" alt="${process.env.PROJECT_NAME}" style="max-width: 120px; filter: brightness(0) invert(1); display: block; margin: 0 auto;" />
+              <img src="${site.logoUrl}" alt="${site.siteName}" style="max-width: 120px; filter: brightness(0) invert(1); display: block; margin: 0 auto;" />
             </td>
           </tr>
           <tr>
@@ -357,12 +364,14 @@ const accountApprovalEmail = async (options) => {
   const userEmail = options.userEmail;
   const userName = options.userName;
 
-  const message = baseTemplate(`
+  const site = await getSiteConfig();
+
+  const message = await baseTemplate(`
     <tr>
       <td style="${baseStyle.content}">
         <h2 style="${baseStyle.h2}">Approval Required</h2>
         <p style="${baseStyle.text}">Hi ${companyOwnerName},</p>
-        <p style="${baseStyle.text}">A new user has registered on <strong>${process.env.PROJECT_NAME}</strong> using a company email address and needs your approval.</p>
+        <p style="${baseStyle.text}">A new user has registered on <strong>${site.siteName}</strong> using a company email address and needs your approval.</p>
         <table width="100%" cellpadding="0" cellspacing="0" style="background: #f8f9fc; border-radius: 10px; overflow: hidden; margin: 20px 0;">
           <tr>
             <td style="padding: 14px 18px; font-size: 14px; font-weight: 600; color: #1a1a2e; border-bottom: 1px solid #eee; background: #f0f2f5;">Full Name</td>
@@ -380,12 +389,12 @@ const accountApprovalEmail = async (options) => {
 
   SmtpController.sendEmail(
     email,
-    `New Registration Pending Approval - ${process.env.PROJECT_NAME}`,
+    `New Registration Pending Approval - ${site.siteName}`,
     message,
   );
 };
 
-const passwordChangedEmail = (options = {}) => {
+const passwordChangedEmail = async (options = {}) => {
   const email = options.email;
   if (!email) return;
 
@@ -394,6 +403,8 @@ const passwordChangedEmail = (options = {}) => {
     options.fullName ||
     options.name ||
     email.split("@")[0];
+
+  const site = await getSiteConfig();
 
   const isAdminChanged = options.isAdminChanged || false;
   const adminName = options.adminName || "";
@@ -404,7 +415,7 @@ const passwordChangedEmail = (options = {}) => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${process.env.PROJECT_NAME} - Password ${isAdminChanged ? "Updated by Admin" : "Changed"}</title>
+  <title>${site.siteName} - Password ${isAdminChanged ? "Updated by Admin" : "Changed"}</title>
 </head>
 <body style="font-family: 'Inter', 'Segoe UI', Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 0;">
   <table width="100%" border="0" cellspacing="0" cellpadding="0" style="padding: 40px 16px;">
@@ -413,7 +424,7 @@ const passwordChangedEmail = (options = {}) => {
         <table width="560" border="0" cellspacing="0" cellpadding="0" style="background-color: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06);">
           <tr>
             <td style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 36px 30px; text-align: center;">
-              <img src="${BACK_WEB_URL}/static/App_logo.png" alt="${process.env.PROJECT_NAME}" style="max-width: 130px; filter: brightness(0) invert(1); display: block; margin: 0 auto;" />
+              <img src="${site.logoUrl}" alt="${site.siteName}" style="max-width: 130px; filter: brightness(0) invert(1); display: block; margin: 0 auto;" />
             </td>
           </tr>
           <tr>
@@ -423,7 +434,7 @@ const passwordChangedEmail = (options = {}) => {
                 isAdminChanged
                   ? `
               <div style="background: #fff5f5; border: 1px solid #ffcaca; border-radius: 10px; padding: 20px; margin: 20px 0;">
-                <p style="font-size: 15px; color: #c0392b; margin: 0; font-weight: 600;">Your ${process.env.PROJECT_NAME} password has been updated by an Admin.</p>
+                <p style="font-size: 15px; color: #c0392b; margin: 0; font-weight: 600;">Your ${site.siteName} password has been updated by an Admin.</p>
                 <p style="font-size: 14px; color: #666; margin: 8px 0 0;">Admin: <strong>${adminName}</strong></p>
               </div>
               `
@@ -468,7 +479,7 @@ const passwordChangedEmail = (options = {}) => {
 
   SmtpController.sendEmail(
     email,
-    `${process.env.PROJECT_NAME} - Password ${isAdminChanged ? "Updated by Admin" : "Changed"}`,
+    `${site.siteName} - Password ${isAdminChanged ? "Updated by Admin" : "Changed"}`,
     message,
   );
 };
@@ -477,12 +488,14 @@ const welcome_user_email = async (options) => {
   const { email, fullName: fullNameOpt = "" } = options;
   const fullName = fullNameOpt || email;
 
+  const site = await getSiteConfig();
+
   const message = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome to ${process.env.PROJECT_NAME}</title>
+  <title>Welcome to ${site.siteName}</title>
 </head>
 <body style="font-family: 'Inter', 'Segoe UI', Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 0;">
   <table width="100%" cellpadding="0" cellspacing="0" style="padding: 40px 16px;">
@@ -491,13 +504,13 @@ const welcome_user_email = async (options) => {
         <table width="560" cellpadding="0" cellspacing="0" style="background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06);">
           <tr>
             <td style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 36px 30px; text-align: center;">
-              <img src="${BACK_WEB_URL}/static/App_logo.png" alt="${process.env.PROJECT_NAME} Logo" style="max-width: 130px; filter: brightness(0) invert(1); display: block; margin: 0 auto;" />
+              <img src="${site.logoUrl}" alt="${site.siteName} Logo" style="max-width: 130px; filter: brightness(0) invert(1); display: block; margin: 0 auto;" />
             </td>
           </tr>
           <tr>
             <td style="padding: 36px 30px; text-align: center;">
               <h2 style="margin: 0 0 8px; font-size: 24px; font-weight: 700; color: #1a1a2e;">Welcome ${fullName}!</h2>
-              <p style="font-size: 15px; line-height: 1.6; color: #555; margin: 12px 0 0;">Your account has been successfully created on <strong>${process.env.PROJECT_NAME}</strong>.</p>
+              <p style="font-size: 15px; line-height: 1.6; color: #555; margin: 12px 0 0;">Your account has been successfully created on <strong>${site.siteName}</strong>.</p>
               <div style="background: #fff8e1; border: 1px solid #ffe082; border-radius: 10px; padding: 16px; margin: 24px 0 0;">
                 <p style="font-size: 14px; color: #e67e22; margin: 0; font-weight: 500;">Your account is currently <strong>pending admin approval</strong>. You will receive another email once approved.</p>
               </div>
@@ -505,7 +518,7 @@ const welcome_user_email = async (options) => {
           </tr>
           <tr>
             <td style="padding: 20px 30px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; background-color: #fafafa;">
-              <p style="margin: 0;">&copy; ${new Date().getFullYear()} ${process.env.PROJECT_NAME}. All rights reserved.</p>
+              <p style="margin: 0;">&copy; ${new Date().getFullYear()} ${site.siteName}. All rights reserved.</p>
             </td>
           </tr>
         </table>
@@ -515,7 +528,7 @@ const welcome_user_email = async (options) => {
 </body>
 </html>`;
 
-  const subject = `Welcome to ${process.env.PROJECT_NAME} - Account Pending Approval`;
+  const subject = `Welcome to ${site.siteName} - Account Pending Approval`;
 
   await SmtpController.sendEmail(email, subject, message);
 };
@@ -528,11 +541,13 @@ const contactUsToAdmin = async (options) => {
   const userName = options.name || "N/A";
   const messageText = options.message || "No message provided";
 
-  const message = baseTemplate(`
+  const site = await getSiteConfig();
+
+  const message = await baseTemplate(`
     <tr>
       <td style="${baseStyle.content}">
-        <h2 style="${baseStyle.h2}">New Contact Us Submission</h2>
-        <p style="${baseStyle.text}">A user has submitted a contact form on <strong>${process.env.PROJECT_NAME}</strong>. Details below:</p>
+        <h2 style="${baseStyle.h2}">New Feedback Submission</h2>
+        <p style="${baseStyle.text}">A user has submitted a contact form on <strong>${site.siteName}</strong>. Details below:</p>
         <table width="100%" cellpadding="0" cellspacing="0" style="background: #f8f9fc; border-radius: 10px; overflow: hidden; margin: 20px 0;">
           <tr>
             <td style="padding: 14px 18px; font-size: 14px; font-weight: 600; color: #1a1a2e; border-bottom: 1px solid #eee; background: #f0f2f5;">Name</td>
@@ -553,13 +568,15 @@ const contactUsToAdmin = async (options) => {
 
   await SmtpController.sendEmail(
     adminEmail,
-    `New Contact Us Submission - ${process.env.PROJECT_NAME}`,
+    `New Feedback Submission - ${site.siteName}`,
     message,
   );
 };
 
 const sendContactUsStatusUpdate = async (options) => {
   const { status, email, fullName, message } = options;
+
+  const site = await getSiteConfig();
 
   const statusColors = {
     resolved: { bg: "#e8f5e9", border: "#a5d6a7", text: "#2e7d32" },
@@ -569,10 +586,10 @@ const sendContactUsStatusUpdate = async (options) => {
 
   const sc = statusColors[status] || statusColors.pending;
 
-  const content = baseTemplate(`
+  const content = await baseTemplate(`
     <tr>
       <td style="${baseStyle.content}">
-        <h2 style="${baseStyle.h2}">Contact Us Status Update</h2>
+        <h2 style="${baseStyle.h2}">Feedback Status Update</h2>
         <p style="${baseStyle.text}">Hi ${fullName},</p>
         <p style="${baseStyle.text}">Your contact request has been updated.</p>
         <div style="text-align: center; margin: 24px 0;">
@@ -592,19 +609,49 @@ const sendContactUsStatusUpdate = async (options) => {
             <td style="padding: 14px 18px; font-size: 14px; color: #555; line-height: 1.5; background: #fff;">${message?.replace(/\n/g, "<br>") || "No message provided"}</td>
           </tr>
         </table>
-        <p style="${baseStyle.text}; font-size: 13px; color: #999; text-align: center;">Thank you for contacting ${process.env.PROJECT_NAME}. Our team is here to help.</p>
+        <p style="${baseStyle.text}; font-size: 13px; color: #999; text-align: center;">Thank you for contacting ${site.siteName}. Our team is here to help.</p>
+      </td>
+    </tr>
+  `);
+
+   await SmtpController.sendEmail(
+    email,
+    `Feedback Status Update - ${site.siteName}`,
+    content,
+  );
+};
+
+const contactUsReply = async (options) => {
+  const { email, fullName, message } = options;
+
+  const site = await getSiteConfig();
+
+  const content = await baseTemplate(`
+    <tr>
+      <td style="${baseStyle.content}">
+        <h2 style="${baseStyle.h2}">Reply from ${site.siteName} Support</h2>
+        <p style="${baseStyle.text}">Hi ${fullName},</p>
+        <p style="${baseStyle.text}">Thank you for contacting ${site.siteName}. Here is a reply from our support team:</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background: #f8f9fc; border-radius: 10px; overflow: hidden; margin: 20px 0;">
+          <tr>
+            <td style="padding: 16px 20px; font-size: 14px; line-height: 1.6; color: #2d2d44;">${(message || "").replace(/\n/g, "<br>")}</td>
+          </tr>
+        </table>
+        <p style="${baseStyle.text}; font-size: 13px; color: #999; text-align: center;">If you need anything else, just reply to this email or visit the Feedback page.</p>
       </td>
     </tr>
   `);
 
   await SmtpController.sendEmail(
     email,
-    `Contact Us Status Update - ${process.env.PROJECT_NAME}`,
+    `Reply from ${site.siteName} Support`,
     content,
   );
 };
 
 module.exports = {
+  baseStyle,
+  baseTemplate,
   forgotPasswordEmail,
   add_user_email,
   userVerifyLink,
@@ -612,7 +659,8 @@ module.exports = {
   accountApprovalEmail,
   passwordChangedEmail,
   welcome_user_email,
-  contactUsToAdmin,
+   contactUsToAdmin,
   sendContactUsStatusUpdate,
+  contactUsReply,
   expiredLinkHtml,
 };

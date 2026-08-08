@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const cron = require("node-cron");
 const ObjectId = mongoose.Types.ObjectId;
 const { subscriptionRepo } = require("../repositories");
-const { reminderEmail, downgradeToFreeEmail } = require("../Emails/stripeEmails");
+const { reminderEmail } = require("../Emails/stripeEmails");
 
 cron.schedule(
   "0 10 * * *",

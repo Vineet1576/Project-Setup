@@ -1,7 +1,15 @@
 require('dotenv').config();
 
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
+});
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -75,7 +83,12 @@ const setupCryptoSecure = () => {
 };
 
 // Global middleware
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginEmbedderPolicy: false,
+  }),
+);
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN
@@ -84,8 +97,13 @@ app.use(
   }),
 );
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
-app.use(express.json({ limit: '5mb' }));
+app.use((req, res, next) => {
+  if (req.path === '/subscriptions/webhook') return next();
+  return express.json({ limit: '5mb' })(req, res, next);
+});
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+app.use(express.static(path.join(__dirname, 'public')));
 
 if (useCryptoSecure) setupCryptoSecure();
 
@@ -116,7 +134,10 @@ app.use('/users/forgot-password', authLimiter);
 app.use('/users/reset-password', authLimiter);
 app.use('/users/verify-email', authLimiter);
 
-app.use(decryptMiddleware);
+app.use((req, res, next) => {
+  if (req.path === '/subscriptions/webhook') return next();
+  return decryptMiddleware(req, res, next);
+});
 app.use(authMiddleware);
 app.use(routes);
 

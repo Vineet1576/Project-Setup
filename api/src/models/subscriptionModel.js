@@ -29,7 +29,7 @@ module.exports = (mongoose) => {
       },
       userId: {
         type: Schema.Types.ObjectId,
-        ref: "organization",
+        ref: "users",
       },
       stripe_subscription_id: {
         type: String,

@@ -173,7 +173,7 @@ exports.changeStatus = async (data) => {
 
   const category = await findCategoryOrThrow(id);
 
-  if (status === "deactive") {
+  if (status === "inactive") {
     const keycheck = category.isParent === true ? "subcategory" : "category";
     const linkedActivity = await categoryRepo.findLinkedActivity(id);
     if (linkedActivity) {

@@ -84,11 +84,12 @@ exports.findAllActive = async () => {
     .select('name displayName')
     .sort({ displayName: 1 })
     .lean();
-  return serializeList(docs);
+  return serializeList(docs, ['name', 'displayName']);
 };
 
 exports.findAll = async (filters = {}) => {
   const match = { isDeleted: false };
+  if (filters.status) match.status = filters.status;
 
   const result = await paginate(Role, {
     page: filters.page,

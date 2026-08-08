@@ -50,12 +50,22 @@ exports.countDocuments = async (filter) => {
   return Notification.countDocuments(filter);
 };
 
-exports.findAllWithPagination = async (userId, params) => {
-  const { page = 1, count = 10, type, read } = params;
+exports.findAllWithPagination = async (userId, params, isAdmin = false) => {
+  const { page = 1, count = 10, type, read, search, excludeType } = params;
 
-  const match = { userId, dismissed: false };
+  const match = { };
+  if (userId) match.userId = new mongoose.Types.ObjectId(userId);
   if (type) match.type = type;
   if (read !== undefined) match.read = read === 'true';
+  if (excludeType) match.type = { ...(type ? { $eq: type } : {}), $ne: excludeType };
+
+  if (search) {
+    match.$or = [
+      { title: { $regex: search, $options: 'i' } },
+      { message: { $regex: search, $options: 'i' } },
+      { type: { $regex: search, $options: 'i' } },
+    ];
+  }
 
   const result = await paginateWrapper(
     Notification,
@@ -76,7 +86,12 @@ exports.findAllWithPagination = async (userId, params) => {
     },
   );
 
-  const unreadCount = await Notification.countDocuments({ userId, read: false, dismissed: false });
+  const unreadCount = await Notification.countDocuments({
+    userId,
+    read: false,
+    dismissed: false,
+    ...(isAdmin ? { type: { $ne: "admin_broadcast" } } : {}),
+  });
 
   return { data: result.data, total: result.pagination.total, unreadCount };
 };

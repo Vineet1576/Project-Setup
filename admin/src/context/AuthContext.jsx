@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { authApi } from '../api/auth';
+import { authApi } from '../methods/api/auth';
 
 const AuthContext = createContext(null);
 
@@ -13,10 +13,12 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (auth?.token) {
-      authApi.autoLogin()
+      authApi.autoLogin({ id: auth.user?.id || auth.user?._id })
         .then((res) => {
-          if (res.data?.token) {
-            const updated = { user: res.data, token: res.data.token };
+          const data = res.data?.data || res.data;
+          const token = data.access_token || data.token;
+          if (token) {
+            const updated = { user: data, token };
             localStorage.setItem('admin_auth', JSON.stringify(updated));
             setAuth(updated);
           }
@@ -29,7 +31,8 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const res = await authApi.login({ email, password });
     const data = res.data?.data || res.data;
-    const authData = { user: data, token: data.token };
+    const token = data.access_token || data.token;
+    const authData = { user: data, token };
     localStorage.setItem('admin_auth', JSON.stringify(authData));
     setAuth(authData);
   };
@@ -40,8 +43,17 @@ export function AuthProvider({ children }) {
     setAuth(null);
   };
 
+  const updateUser = (patch) => {
+    setAuth((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, user: { ...prev.user, ...patch } };
+      localStorage.setItem('admin_auth', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ auth, loading, login, logout }}>
+    <AuthContext.Provider value={{ auth, loading, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

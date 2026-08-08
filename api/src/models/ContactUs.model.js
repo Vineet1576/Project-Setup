@@ -12,7 +12,8 @@ module.exports = (mongoose) => {
       mobileNo: String,
       image: String,
       address: String,
-      message: String,
+       message: String,
+      topic: { type: String, index: true },
       status: {
         type: String,
         enum: ["read", "unread"],

@@ -69,3 +69,20 @@ exports.changeStatus = async ({ id, status }) => {
     });
   }
 };
+
+exports.reply = async ({ id, message }) => {
+  const existed = await findContactOrThrow(id);
+  if (!existed.email) throw constants.ContactUs.NOT_FOUND_EMAIL;
+
+  if (existed.status !== "read") {
+    await contactUsRepo.findOneAndUpdate(id, { status: "read" });
+  }
+
+  const fullName = existed.fullName || [existed.firstName, existed.lastName].filter(Boolean).join(" ") || "-";
+
+  await Emails.contactUsReply({
+    email: existed.email,
+    fullName,
+    message,
+  });
+};

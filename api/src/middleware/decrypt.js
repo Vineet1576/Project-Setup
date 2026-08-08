@@ -1,13 +1,45 @@
 const forge = require("node-forge");
 const url = require("url");
 const querystring = require("querystring");
-const { ENCRYPTION_IV, SECRET_KEY, CRYPTO_SECURE_ENCRYPTION } = process.env;
+const CryptoSecure = require("crypto-secure");
+const {
+  ENCRYPTION_IV,
+  SECRET_KEY,
+  CRYPTO_SECURE_ENCRYPTION,
+  CRYPTO_SECURE_PRIVATE_KEY,
+} = process.env;
 
 const useCryptoSecure = CRYPTO_SECURE_ENCRYPTION === "true";
 const isValidHex = (str) => /^[0-9a-fA-F]+$/.test(str);
 
 module.exports = async (req, res, next) => {
-  if (useCryptoSecure) return next();
+  if (useCryptoSecure) {
+    try {
+      const dataParam = req.query && req.query.data;
+      if (dataParam) {
+        let payload = dataParam;
+        if (typeof payload === "string") {
+          try {
+            payload = JSON.parse(payload);
+          } catch {
+            payload = null;
+          }
+        }
+        if (payload && CryptoSecure.isEncrypted(payload)) {
+          req.decryptedParams = CryptoSecure.decrypt(
+            payload,
+            CRYPTO_SECURE_PRIVATE_KEY,
+          );
+        } else if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+          req.decryptedParams = payload;
+        }
+      }
+    } catch (err) {
+      console.error("Decryption error:", err.message);
+      return res.status(400).json({ error: "Decryption failed" });
+    }
+    return next();
+  }
 
   const iv = ENCRYPTION_IV;
   const secretKey = SECRET_KEY;
@@ -50,6 +82,16 @@ module.exports = async (req, res, next) => {
         const parsedUrl = url.parse(req.originalUrl);
         const queryParams = querystring.parse(parsedUrl.query);
         req.decryptedParams = queryParams;
+        if (typeof queryParams.data === "string") {
+          try {
+            const parsed = JSON.parse(queryParams.data);
+            if (parsed && typeof parsed === "object") {
+              req.decryptedParams = parsed;
+            }
+          } catch {
+            // keep raw queryParams
+          }
+        }
       }
     }
 

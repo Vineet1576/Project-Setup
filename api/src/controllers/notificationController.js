@@ -5,6 +5,7 @@ const Validations = require("../validations");
 module.exports = {
   list: async (req, res, next) => {
     try {
+      const params = req.decryptedParams || req.query;
       const validation = await Validations.Notification.list(req);
       if (validation && !validation.success) {
         throw helper.createAppError(validation.message, 400);
@@ -12,7 +13,8 @@ module.exports = {
 
       const result = await notificationService.getUserNotifications(
         req.identity.id,
-        req.query,
+        params,
+        req.identity.isAdmin,
       );
 
       return res.status(200).json({
@@ -21,8 +23,8 @@ module.exports = {
         data: result.data,
         total: result.total,
         unreadCount: result.unreadCount,
-        page: Number(req.query.page) || 1,
-        limit: Number(req.query.count) || 10,
+        page: Number(params.page) || 1,
+        limit: Number(params.count) || 10,
       });
     } catch (err) {
       next(err);
@@ -64,6 +66,7 @@ module.exports = {
       const result = await notificationService.markAllAsRead(
         req.identity.id,
         req.body.type,
+        req.identity.isAdmin,
       );
 
       return res.status(200).json({
@@ -103,7 +106,10 @@ module.exports = {
 
   unreadCount: async (req, res, next) => {
     try {
-      const count = await notificationService.getUnreadCount(req.identity.id);
+      const count = await notificationService.getUnreadCount(
+        req.identity.id,
+        req.identity.isAdmin,
+      );
 
       return res.status(200).json({
         success: true,

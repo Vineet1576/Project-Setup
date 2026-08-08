@@ -18,8 +18,10 @@ exports.list = async (req) =>
         .valid("subscription_reminder", "subscription_expired", "payment_success", "payment_failed", "new_message", "account_approved", "admin_broadcast", "system")
         .optional(),
       read: Joi.boolean().optional(),
+      search: Joi.string().allow("").optional(),
+      excludeType: Joi.string().optional(),
     }),
-    req.query,
+    req.decryptedParams || req.query,
   );
 
 exports.markRead = async (req) =>

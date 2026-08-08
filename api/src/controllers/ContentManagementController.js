@@ -5,7 +5,7 @@ const contentManagementService = require("../services/contentManagementService")
 module.exports = {
   listing: async (req, res, next) => {
     try {
-      const params = req.query;
+      const params = req.decryptedParams || req.query;
       const result = await contentManagementService.listing(params);
       return res.status(200).json({
         success: true,

@@ -6,5 +6,6 @@ router.put('/update', contactUs.update);
 router.delete('/delete', contactUs.delete);
 router.get('/listing', contactUs.listing);
 router.put('/status/change', contactUs.changeStatus);
+router.post('/reply', contactUs.reply);
 
 module.exports = router;

@@ -13,7 +13,7 @@ module.exports = (mongoose) => {
       parentId: { type: Schema.Types.ObjectId, ref: "category" },
       status: {
         type: String,
-        enum: ["active", "deactive"],
+        enum: ["active", "inactive", "deactive"],
         default: "active",
         index: true,
       },

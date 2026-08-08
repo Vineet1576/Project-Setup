@@ -1,8 +1,5 @@
 const fs = require("fs");
 const path = require("path");
-const xlsx = require("xlsx");
-const { Readable } = require("stream");
-const csv = require("csv-parser");
 const mongoose = require("mongoose");
 
 const makeDir = (dir) => {

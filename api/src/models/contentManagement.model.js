@@ -36,7 +36,7 @@ module.exports = (mongoose) => {
       ],
       status: {
         type: String,
-        enum: ["active", "deactive"],
+        enum: ["active", "inactive", "deactive"],
         default: "active",
         index: true,
       },

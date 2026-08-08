@@ -14,6 +14,7 @@ const fields = [
   'image',
   'address',
   'message',
+  'topic',
   'status',
   'addedBy',
   'isDeleted',
@@ -44,9 +45,10 @@ exports.softDelete = async (id) => {
 };
 
 exports.findAllWithPagination = async (filters) => {
-  const { search, page, count, sortBy, status } = filters;
+  const { search, page = 1, count = 10, sortBy, status, topic } = filters;
   const match = { isDeleted: false };
   if (status) match.status = status;
+  if (topic) match.topic = topic;
 
   const result = await paginateWrapper(
     ContactUs,
@@ -63,7 +65,8 @@ exports.findAllWithPagination = async (filters) => {
         lastName: 1,
         fullName: 1,
         email: 1,
-        message: 1,
+         message: 1,
+        topic: 1,
         createdAt: 1,
         updatedAt: 1,
         isDeleted: 1,

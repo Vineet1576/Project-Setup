@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
-const serialize = (doc, extraFields = []) => {
+const serialize = (doc, extraFields = [], options = {}) => {
   if (!doc) return null;
   const obj = doc.toObject ? doc.toObject() : doc;
   const base = {
@@ -10,14 +10,28 @@ const serialize = (doc, extraFields = []) => {
     createdAt: obj.createdAt,
     updatedAt: obj.updatedAt,
   };
+  const preserveObjects = options.preserveObjects || [];
   for (const key of extraFields) {
     if (obj[key] !== undefined) {
-      if (obj[key] && typeof obj[key] === 'object' && obj[key]._id) {
-        base[key] = obj[key]._id.toString();
-      } else if (Array.isArray(obj[key]) && obj[key].length > 0 && obj[key][0] && obj[key][0]._id) {
-        base[key] = obj[key].map((i) => (i?._id ? i._id.toString() : i));
+      const val = obj[key];
+      if (preserveObjects.includes(key)) {
+        if (Array.isArray(val)) {
+          base[key] = val.map((item) =>
+            item && typeof item === 'object' && item._id
+              ? serialize(item, Object.keys(item), options)
+              : item,
+          );
+        } else if (val && typeof val === 'object' && val._id) {
+          base[key] = serialize(val, Object.keys(val), options);
+        } else {
+          base[key] = val;
+        }
+      } else if (val && typeof val === 'object' && val._id) {
+        base[key] = val._id.toString();
+      } else if (Array.isArray(val) && val.length > 0 && val[0] && val[0]._id) {
+        base[key] = val.map((i) => (i?._id ? i._id.toString() : i));
       } else {
-        base[key] = obj[key];
+        base[key] = val;
       }
     }
   }

@@ -233,6 +233,19 @@ module.exports = {
     }
   },
 
+  changeStatus: async (req, res, next) => {
+    try {
+      const { id, status } = req.body;
+      if (!id || !status) {
+        throw helper.createAppError('id and status are required', 400);
+      }
+      await userServices.changeStatus({ id, status });
+      return response.success(null, 'Status updated successfully', req, res);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   deleteUser: async (req, res, next) => {
     try {
       const { id } = req.decryptedParams || req.query;
@@ -303,16 +316,16 @@ module.exports = {
   checkResetLink: async (req, res, next) => {
     try {
       const { data } = req.query;
-      if (!data) return res.send(Emails.expiredLinkHtml);
+      if (!data) return res.send(await Emails.expiredLinkHtml());
 
       const decrypted = decryptData(data);
       const { userId, code, expiresAt } = decrypted;
 
       const user = await userRepo.findById(userId, { select: '+verificationCode' });
-      if (!user) return res.send(Emails.expiredLinkHtml);
+      if (!user) return res.send(await Emails.expiredLinkHtml());
 
       if (user.verificationCode !== code || user.isExpire || Date.now() > expiresAt) {
-        return res.send(Emails.expiredLinkHtml);
+        return res.send(await Emails.expiredLinkHtml());
       }
 
       await userRepo.updateById(userId, { isExpire: true });
@@ -321,8 +334,8 @@ module.exports = {
 
       const redirectUrl = `${process.env.FRONT_WEB_URL || ''}/reset-password?token=${tempToken}`;
       return res.redirect(redirectUrl);
-    } catch (err) {
-      return res.send(Emails.expiredLinkHtml);
+       } catch (err) {
+      return res.send(await Emails.expiredLinkHtml());
     }
   },
 };

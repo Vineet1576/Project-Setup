@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const db = require('../models');
 const helper = require('../utils/helpers');
 const { serialize, serializeList, paginateWrapper, isValidObjectId } = require('./repositoryUtils');
@@ -43,7 +44,19 @@ const fields = [
   'nearbyAlertsOnly',
 ];
 
-const serializeUser = (doc) => serialize(doc, fields);
+const serializeUser = (doc, options = {}) => serialize(doc, fields, options);
+
+exports.USER_LOGIN_POPULATE = [
+  { path: 'role', select: 'name' },
+  {
+    path: 'planId',
+    select: 'name plan_type pricing numberOfDays maxDispensaries',
+  },
+  {
+    path: 'subscriptionId',
+    select: 'plan_id stripe_price_id userId status valid_upto interval',
+  },
+];
 
 exports.findById = async (id, options = {}) => {
   if (!id || !isValidObjectId(id)) return null;
@@ -51,15 +64,17 @@ exports.findById = async (id, options = {}) => {
   if (options.select) query = query.select(options.select);
   if (options.populate) query = query.populate(options.populate);
   const doc = await query.lean();
-  return serializeUser(doc);
+  return serializeUser(doc, { preserveObjects: options.preserveObjects });
 };
 
-exports.findByEmail = async (email) => {
+exports.findByEmail = async (email, options = {}) => {
   if (!email) return null;
-  const doc = await User.findOne({ email: helper.trimAndLowercase(email), isDeleted: false })
-    .populate('role')
-    .lean();
-  return serializeUser(doc);
+  let query = User.findOne({ email: helper.trimAndLowercase(email), isDeleted: false })
+    .select('+password');
+  if (options.populate) query = query.populate(options.populate);
+  else query = query.populate('role');
+  const doc = await query.lean();
+  return serializeUser(doc, { preserveObjects: options.preserveObjects });
 };
 
 exports.findByEmailRaw = async (email) => {
@@ -108,7 +123,7 @@ exports.findOne = async (filter, options = {}) => {
   if (options.populate) query = query.populate(options.populate);
   if (options.sort) query = query.sort(options.sort);
   const doc = await query.lean();
-  return serializeUser(doc);
+  return serializeUser(doc, { preserveObjects: options.preserveObjects });
 };
 
 exports.findAllWithPagination = async (filters) => {

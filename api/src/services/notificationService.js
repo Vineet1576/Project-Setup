@@ -12,8 +12,11 @@ exports.createNotification = async ({ userId, type, title, message, metadata }) 
   return notification;
 };
 
-exports.getUserNotifications = async (userId, params) => {
-  return notificationRepo.findAllWithPagination(userId, params);
+exports.getUserNotifications = async (userId, params, isAdmin = false) => {
+  const merged = isAdmin
+    ? { ...params, excludeType: params.excludeType || "admin_broadcast" }
+    : params;
+  return notificationRepo.findAllWithPagination(userId, merged, isAdmin);
 };
 
 exports.markAsRead = async (userId, notificationId) => {
@@ -29,9 +32,10 @@ exports.markAsRead = async (userId, notificationId) => {
   return notification;
 };
 
-exports.markAllAsRead = async (userId, type) => {
+exports.markAllAsRead = async (userId, type, isAdmin = false) => {
   const match = { userId, read: false, dismissed: false };
   if (type) match.type = type;
+  if (isAdmin) match.type = { ...(type ? { $eq: type } : {}), $ne: "admin_broadcast" };
 
   const result = await notificationRepo.updateMany(match, { read: true, readAt: new Date() });
 
@@ -52,8 +56,10 @@ exports.dismissNotification = async (userId, notificationId) => {
   return notification;
 };
 
-exports.getUnreadCount = async (userId) => {
-  return notificationRepo.countDocuments({ userId, read: false, dismissed: false });
+exports.getUnreadCount = async (userId, isAdmin = false) => {
+  const match = { userId, read: false, dismissed: false };
+  if (isAdmin) match.type = { $ne: "admin_broadcast" };
+  return notificationRepo.countDocuments(match, isAdmin);
 };
 
 exports.notifyAdmins = async ({ type, title, message, metadata }) => {
@@ -79,8 +85,11 @@ exports.notifyAdmins = async ({ type, title, message, metadata }) => {
 
 exports.broadcastToAll = async ({ type, title, message, metadata }) => {
   const db = require("../models");
+  const adminRoles = await db.roles
+    .find({ name: { $in: ["admin", "super_admin"] } })
+    .distinct("_id");
   const userIds = await db.users
-    .find({ isDeleted: false, status: "active" })
+    .find({ isDeleted: false, status: "active", role: { $nin: adminRoles } })
     .distinct("_id");
 
   const notifications = await notificationRepo.createMany(

@@ -86,7 +86,7 @@ module.exports = {
   changeStatus: async (req, res, next) => {
     try {
       await roleService.changeStatus(req);
-      return response.success(null, constants.roles.STATUS_CHANGED, req, res);
+      return response.success(null, constants.ROLES.STATUS_CHANGED, req, res);
     } catch (err) {
       next(err);
     }
@@ -105,7 +105,7 @@ module.exports = {
   frontendRolesList: async (req, res, next) => {
     try {
       const roles = await roleService.frontendRolesList();
-      return response.success(roles, constants.onBoarding.FETCHED_SUCCESS, req, res);
+      return response.success({ roles }, constants.onBoarding.FETCHED_SUCCESS, req, res);
     } catch (err) {
       next(err);
     }
