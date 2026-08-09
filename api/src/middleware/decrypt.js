@@ -2,17 +2,34 @@ const forge = require("node-forge");
 const url = require("url");
 const querystring = require("querystring");
 const CryptoSecure = require("crypto-secure");
-const {
-  ENCRYPTION_IV,
-  SECRET_KEY,
-  CRYPTO_SECURE_ENCRYPTION,
-  CRYPTO_SECURE_PRIVATE_KEY,
-} = process.env;
+const { settingRepo } = require("../repositories");
 
-const useCryptoSecure = CRYPTO_SECURE_ENCRYPTION === "true";
 const isValidHex = (str) => /^[0-9a-fA-F]+$/.test(str);
 
+const getCryptoConfig = async () => {
+  const settings = await settingRepo.getGlobal();
+  const config = (settings && settings.config) || {};
+  return {
+    ENCRYPTION_IV: config.ENCRYPTION_IV || "",
+    SECRET_KEY: config.SECRET_KEY || "",
+    CRYPTO_SECURE_ENCRYPTION: config.CRYPTO_SECURE_ENCRYPTION || "",
+  };
+};
+
 module.exports = async (req, res, next) => {
+  const {
+    ENCRYPTION_IV: dbIv,
+    SECRET_KEY: dbSecretKey,
+    CRYPTO_SECURE_ENCRYPTION: dbCryptoSecure,
+  } = await getCryptoConfig();
+  const ENCRYPTION_IV = dbIv || process.env.ENCRYPTION_IV;
+  const SECRET_KEY = dbSecretKey || process.env.SECRET_KEY;
+  const CRYPTO_SECURE_ENCRYPTION = dbCryptoSecure || process.env.CRYPTO_SECURE_ENCRYPTION;
+  const CRYPTO_SECURE_PRIVATE_KEY = process.env.CRYPTO_SECURE_PRIVATE_KEY;
+  const useCryptoSecure =
+    typeof CRYPTO_SECURE_ENCRYPTION === 'string' &&
+    CRYPTO_SECURE_ENCRYPTION.toLowerCase() === 'true';
+
   if (useCryptoSecure) {
     try {
       const dataParam = req.query && req.query.data;

@@ -57,9 +57,17 @@ const applyDbConfig = async () => {
     const config = (settings && settings.config) || {};
     let applied = 0;
     for (const key of CONFIG_KEYS) {
-      const value = config[key];
+      let value = config[key];
+      if (typeof value === 'boolean') {
+        value = value ? 'true' : 'false';
+      }
       if (typeof value === 'string' && value.trim() !== '') {
-        process.env[key] = value.trim();
+        const trimmedValue = value.trim();
+        if (key === 'CRYPTO_SECURE_ENCRYPTION' || key === 'RUN_SEED') {
+          process.env[key] = trimmedValue.toLowerCase();
+        } else {
+          process.env[key] = trimmedValue;
+        }
         applied += 1;
       }
     }
@@ -89,7 +97,9 @@ const bootstrap = async () => {
 
   const app = express();
   const PORT = process.env.PORT || 3000;
-  const useCryptoSecure = process.env.CRYPTO_SECURE_ENCRYPTION === 'true';
+  const useCryptoSecure =
+    typeof process.env.CRYPTO_SECURE_ENCRYPTION === 'string' &&
+    process.env.CRYPTO_SECURE_ENCRYPTION.toLowerCase() === 'true';
 
   require('./src/models');
 
