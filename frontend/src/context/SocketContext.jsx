@@ -5,7 +5,7 @@ import { useNotificationManager } from '../components/common/NotificationManager
 
 const SocketContext = createContext(null);
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 export function SocketProvider({ children }) {
   const { auth } = useAuth();
@@ -39,6 +39,16 @@ export function SocketProvider({ children }) {
       if (notification?.type === 'admin_broadcast') return;
       setNotificationCount((c) => c + 1);
       showNotification(notification);
+    });
+    s.on('feedback_status_update', (data) => {
+      setNotificationCount((c) => c + 1);
+      showNotification({
+        type: 'feedback_status_update',
+        title: 'Feedback Status Updated',
+        message: data.message,
+        feedbackId: data.feedbackId,
+        status: data.status,
+      });
     });
     s.on('notifications_all_read', () => setNotificationCount(0));
     s.on('notification_read', () => setNotificationCount((c) => Math.max(0, c - 1)));

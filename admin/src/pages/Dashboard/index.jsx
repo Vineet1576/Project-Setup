@@ -6,8 +6,10 @@ import LineAreaChart from '../../components/charts/LineAreaChart';
 import RevenueTrendChart from '../../components/charts/RevenueTrendChart';
 import DonutChart from '../../components/charts/DonutChart';
 import SkeletonLoader from '../../components/common/SkeletonLoader';
+import EmptyState from '../../components/common/EmptyState';
 import { dashboardApi } from '../../methods/api/dashboard';
 import { useAuth } from '../../context/AuthContext';
+import { useRecord } from '../../context/RecordContext';
 import { useToast } from '../../components/common/Toast';
 import { capitalizeName } from '../../utils/name';
 
@@ -52,6 +54,7 @@ const Icons = {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { setActiveId } = useRecord();
   const { auth } = useAuth();
   const { showToast } = useToast();
   const [range, setRange] = useState({});
@@ -225,7 +228,7 @@ export default function Dashboard() {
             <div className="panel-card" style={{ padding: 22 }}>
               {sectionTitle('Plan Distribution', { accent: '#a855f7', right: <span style={badgeStyle}>{planDistTotal} subscriptions</span> })}
               {planDist.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>No subscriptions yet</div>
+                <EmptyState compact title="No subscriptions yet" />
               ) : (
                 <DonutChart data={planDist} size={200} thickness={26} centerLabel="subscriptions" />
               )}
@@ -287,9 +290,9 @@ export default function Dashboard() {
               {tabLoading ? (
                 <MiniTableSkeleton rows={4} />
               ) : tab === 'transactions' ? (
-                <MiniTable columns={txColumns} rows={s.recentTransactions || []} onRowClick={(t) => navigate(`/transactions/view/${t.id}`)} empty="No transactions yet" />
+                <MiniTable columns={txColumns} rows={s.recentTransactions || []} onRowClick={(t) => { setActiveId(t.id); navigate('/transactions/view', { state: { record: t } }); }} empty="No transactions yet" />
               ) : (
-                <MiniTable columns={signupColumns} rows={s.recentSignups || []} onRowClick={(u) => navigate(`/users/view/${u.id}`)} empty="No signups yet" />
+                <MiniTable columns={signupColumns} rows={s.recentSignups || []} onRowClick={(u) => { setActiveId(u.id); navigate('/users/view'); }} empty="No signups yet" />
               )}
             </div>
           </div>
@@ -369,7 +372,7 @@ const Pill = ({ label, color }) => (
 
 const MiniTable = ({ columns, rows, onRowClick, empty }) => {
   if (!rows.length) {
-    return <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>{empty || 'No records'}</div>;
+    return <EmptyState compact title={empty || 'No records'} />;
   }
   return (
     <div style={{ borderRadius: 12, border: '1px solid var(--hairline)', overflow: 'hidden' }}>

@@ -24,6 +24,13 @@ const baseStyle = {
   footer: "padding: 20px 30px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; background-color: #fafafa;",
 };
 
+const capitalizeName = (name = "") =>
+  String(name)
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+
 const baseTemplate = async (content) => {
   const site = await getSiteConfig();
   return `
@@ -264,6 +271,69 @@ const add_user_email = async (options) => {
   );
 };
 
+const updateUserInfoEmail = async (options) => {
+  const {
+    email,
+    fullName: fullNameOpt = "User",
+    firstName,
+    lastName,
+    mobile,
+    address,
+    city,
+    state,
+    country,
+    pinCode,
+    roleName,
+    status,
+  } = options;
+
+  const fullName = fullNameOpt || [firstName, lastName].filter(Boolean).join(" ") || email.split("@")[0];
+  const site = await getSiteConfig();
+
+  const rows = [
+    ["Full Name", fullName],
+    ["Email Address", email],
+    mobile ? ["Mobile Number", mobile] : null,
+    address ? ["Address", address] : null,
+    city ? ["City", city] : null,
+    state ? ["State", state] : null,
+    country ? ["Country", country] : null,
+    pinCode ? ["Pin Code", pinCode] : null,
+    roleName ? ["Role", roleName] : null,
+    status ? ["Status", status] : null,
+  ].filter(Boolean);
+
+  const rowsHtml = rows
+    .map(
+      ([label, value], i) => `
+      <tr>
+        <td style="padding: 14px 18px; font-size: 14px; font-weight: 600; color: #1a1a2e; border-bottom: 1px solid #eee; ${i % 2 === 0 ? "background: #f0f2f5;" : ""}">${label}</td>
+        <td style="padding: 14px 18px; font-size: 14px; color: #555; border-bottom: 1px solid #eee; ${i % 2 === 0 ? "background: #f0f2f5;" : ""}">${value}</td>
+      </tr>`,
+    )
+    .join("");
+
+  const message = await baseTemplate(`
+    <tr>
+      <td style="${baseStyle.content}">
+        <h2 style="${baseStyle.h2}">Your Account Information Was Updated</h2>
+        <p style="${baseStyle.text}">Hi ${fullName},</p>
+        <p style="${baseStyle.text}">Your account details on <strong>${site.siteName}</strong> were recently updated by an administrator. Here is a summary of your current details:</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background: #f8f9fc; border-radius: 10px; overflow: hidden; margin: 20px 0;">
+          ${rowsHtml}
+        </table>
+        <p style="${baseStyle.text}; font-size: 13px; color: #999; text-align: center;">If you did not expect these changes, please contact our support team immediately.</p>
+      </td>
+    </tr>
+  `);
+
+  await SmtpController.sendEmail(
+    email,
+    `Your ${site.siteName} Account Information Was Updated`,
+    message,
+  );
+};
+
 const userVerifyLink = async (options) => {
   const {
     email,
@@ -271,7 +341,7 @@ const userVerifyLink = async (options) => {
     id: userId,
     password = "",
   } = options;
-  const fullName = fullNameOpt;
+  const fullName = capitalizeName(fullNameOpt);
 
   const site = await getSiteConfig();
 
@@ -486,7 +556,7 @@ const passwordChangedEmail = async (options = {}) => {
 
 const welcome_user_email = async (options) => {
   const { email, fullName: fullNameOpt = "" } = options;
-  const fullName = fullNameOpt || email;
+  const fullName = capitalizeName(fullNameOpt || email);
 
   const site = await getSiteConfig();
 
@@ -533,7 +603,7 @@ const welcome_user_email = async (options) => {
   await SmtpController.sendEmail(email, subject, message);
 };
 
-const contactUsToAdmin = async (options) => {
+const feedbackToAdmin = async (options) => {
   const adminEmail = options.adminEmail;
   if (!adminEmail) return;
 
@@ -547,7 +617,7 @@ const contactUsToAdmin = async (options) => {
     <tr>
       <td style="${baseStyle.content}">
         <h2 style="${baseStyle.h2}">New Feedback Submission</h2>
-        <p style="${baseStyle.text}">A user has submitted a contact form on <strong>${site.siteName}</strong>. Details below:</p>
+        <p style="${baseStyle.text}">A user has submitted feedback on <strong>${site.siteName}</strong>. Details below:</p>
         <table width="100%" cellpadding="0" cellspacing="0" style="background: #f8f9fc; border-radius: 10px; overflow: hidden; margin: 20px 0;">
           <tr>
             <td style="padding: 14px 18px; font-size: 14px; font-weight: 600; color: #1a1a2e; border-bottom: 1px solid #eee; background: #f0f2f5;">Name</td>
@@ -573,55 +643,40 @@ const contactUsToAdmin = async (options) => {
   );
 };
 
-const sendContactUsStatusUpdate = async (options) => {
-  const { status, email, fullName, message } = options;
+const feedbackThankYou = async (options) => {
+  const { email, fullName, message, topic } = options;
 
   const site = await getSiteConfig();
-
-  const statusColors = {
-    resolved: { bg: "#e8f5e9", border: "#a5d6a7", text: "#2e7d32" },
-    "in-progress": { bg: "#fff8e1", border: "#ffe082", text: "#e65100" },
-    pending: { bg: "#fce4ec", border: "#ef9a9a", text: "#c62828" },
-  };
-
-  const sc = statusColors[status] || statusColors.pending;
 
   const content = await baseTemplate(`
     <tr>
       <td style="${baseStyle.content}">
-        <h2 style="${baseStyle.h2}">Feedback Status Update</h2>
+        <h2 style="${baseStyle.h2}">Thank You for Your Feedback</h2>
         <p style="${baseStyle.text}">Hi ${fullName},</p>
-        <p style="${baseStyle.text}">Your contact request has been updated.</p>
-        <div style="text-align: center; margin: 24px 0;">
-          <span style="display: inline-block; background: ${sc.bg}; border: 1px solid ${sc.border}; border-radius: 20px; padding: 8px 28px; font-size: 14px; font-weight: 700; color: ${sc.text}; text-transform: uppercase; letter-spacing: 1px;">${status?.toUpperCase() || "PENDING"}</span>
-        </div>
+        <p style="${baseStyle.text}">Thank you for taking the time to share your feedback with us. We've received your message and appreciate you reaching out.</p>
         <table width="100%" cellpadding="0" cellspacing="0" style="background: #f8f9fc; border-radius: 10px; overflow: hidden; margin: 20px 0;">
           <tr>
-            <td style="padding: 14px 18px; font-size: 14px; font-weight: 600; color: #1a1a2e; border-bottom: 1px solid #eee; background: #f0f2f5;">Name</td>
-            <td style="padding: 14px 18px; font-size: 14px; color: #555; border-bottom: 1px solid #eee;">${fullName}</td>
+            <td style="padding: 14px 18px; font-size: 14px; font-weight: 600; color: #1a1a2e; border-bottom: 1px solid #eee; background: #f0f2f5;">Topic</td>
+            <td style="padding: 14px 18px; font-size: 14px; color: #555; border-bottom: 1px solid #eee;">${topic || "General"}</td>
           </tr>
           <tr>
-            <td style="padding: 14px 18px; font-size: 14px; font-weight: 600; color: #1a1a2e; border-bottom: 1px solid #eee; background: #f0f2f5;">Email</td>
-            <td style="padding: 14px 18px; font-size: 14px; color: #555; border-bottom: 1px solid #eee;">${email}</td>
-          </tr>
-          <tr>
-            <td style="padding: 14px 18px; font-size: 14px; font-weight: 600; color: #1a1a2e; background: #f0f2f5;">Message</td>
+            <td style="padding: 14px 18px; font-size: 14px; font-weight: 600; color: #1a1a2e; background: #f0f2f5;">Your Message</td>
             <td style="padding: 14px 18px; font-size: 14px; color: #555; line-height: 1.5; background: #fff;">${message?.replace(/\n/g, "<br>") || "No message provided"}</td>
           </tr>
         </table>
-        <p style="${baseStyle.text}; font-size: 13px; color: #999; text-align: center;">Thank you for contacting ${site.siteName}. Our team is here to help.</p>
+        <p style="${baseStyle.text}; font-size: 13px; color: #999; text-align: center;">Our team will review your feedback and get back to you if needed. Thank you for helping us improve ${site.siteName}!</p>
       </td>
     </tr>
   `);
 
-   await SmtpController.sendEmail(
+  await SmtpController.sendEmail(
     email,
-    `Feedback Status Update - ${site.siteName}`,
+    `Thank You for Your Feedback - ${site.siteName}`,
     content,
   );
 };
 
-const contactUsReply = async (options) => {
+const feedbackReply = async (options) => {
   const { email, fullName, message } = options;
 
   const site = await getSiteConfig();
@@ -631,7 +686,7 @@ const contactUsReply = async (options) => {
       <td style="${baseStyle.content}">
         <h2 style="${baseStyle.h2}">Reply from ${site.siteName} Support</h2>
         <p style="${baseStyle.text}">Hi ${fullName},</p>
-        <p style="${baseStyle.text}">Thank you for contacting ${site.siteName}. Here is a reply from our support team:</p>
+        <p style="${baseStyle.text}">Thank you for your feedback. Here is a reply from our support team:</p>
         <table width="100%" cellpadding="0" cellspacing="0" style="background: #f8f9fc; border-radius: 10px; overflow: hidden; margin: 20px 0;">
           <tr>
             <td style="padding: 16px 20px; font-size: 14px; line-height: 1.6; color: #2d2d44;">${(message || "").replace(/\n/g, "<br>")}</td>
@@ -654,13 +709,14 @@ module.exports = {
   baseTemplate,
   forgotPasswordEmail,
   add_user_email,
+  updateUserInfoEmail,
   userVerifyLink,
   verificationOtp,
   accountApprovalEmail,
   passwordChangedEmail,
   welcome_user_email,
-   contactUsToAdmin,
-  sendContactUsStatusUpdate,
-  contactUsReply,
+  feedbackToAdmin,
+  feedbackThankYou,
+  feedbackReply,
   expiredLinkHtml,
 };

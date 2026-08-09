@@ -48,6 +48,11 @@ exports.updateOne = async (id, data) => {
   await CMS.updateOne({ _id: id }, data);
 };
 
+exports.softDelete = async (id) => {
+  if (!id || !isValidObjectId(id)) return { modifiedCount: 0 };
+  return CMS.updateOne({ _id: id, isDeleted: false }, { isDeleted: true });
+};
+
 exports.findAllWithPagination = async (filters) => {
   const { search, page = 1, count = 10, sortBy, title, status } = filters;
   const match = { isDeleted: false };

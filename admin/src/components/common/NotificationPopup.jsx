@@ -64,7 +64,7 @@ export default function NotificationPopup({ notification, onClose }) {
       >
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
       </button>
-      <div className={`absolute bottom-0 left-0 h-0.5 w-full bg-gradient-to-r ${gradient}`} style={{ animation: 'progress 5s linear' }} />
+      <div className={`absolute bottom-0 left-0 h-0.5 w-full bg-gradient-to-r ${gradient}`} style={{ animation: 'progress 10s linear' }} />
     </div>
   );
 }

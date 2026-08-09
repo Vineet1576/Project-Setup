@@ -6,7 +6,7 @@ const toString = (v) => (Array.isArray(v) ? v.join(', ') : (v || ''));
 
 export default function CategoryForm({ record, onDone, readOnly = false }) {
   const category = record;
-  const [form, setForm] = useState({ name: '', type: '', country: '', isParent: false });
+  const [form, setForm] = useState({ name: '' });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const { showToast } = useToast();
@@ -14,9 +14,6 @@ export default function CategoryForm({ record, onDone, readOnly = false }) {
   useEffect(() => {
     setForm({
       name: toString(category?.name),
-      type: toString(category?.type),
-      country: toString(category?.country),
-      isParent: !!category?.isParent,
     });
     setError('');
   }, [category]);
@@ -28,9 +25,9 @@ export default function CategoryForm({ record, onDone, readOnly = false }) {
     setSaving(true);
     try {
       if (category) {
-        await categoriesApi.update({ id: category.id || category._id, '0': { name: form.name, type: form.type, country: form.country } });
+        await categoriesApi.update({ id: category.id || category._id, '0': { name: form.name } });
       } else {
-        await categoriesApi.create({ name: form.name, type: form.type, country: form.country, isParent: form.isParent, parentId: null });
+        await categoriesApi.create({ name: form.name });
       }
       showToast(category ? 'Category updated' : 'Category created', 'success');
       onDone();
@@ -46,16 +43,18 @@ export default function CategoryForm({ record, onDone, readOnly = false }) {
       {error && <div className="status-message status-error">{error}</div>}
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <input type="text" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required disabled={readOnly} style={readOnly ? readOnlyStyle : inputStyle} />
-        <input type="text" placeholder="Type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} disabled={readOnly} style={readOnly ? readOnlyStyle : inputStyle} />
-        <input type="text" placeholder="Country" value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} disabled={readOnly} style={readOnly ? readOnlyStyle : inputStyle} />
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--body)' }}>
-          <input type="checkbox" checked={form.isParent} onChange={(e) => setForm({ ...form, isParent: e.target.checked })} disabled={readOnly} style={{ width: 'auto' }} />
-          Parent category
-        </label>
         {!readOnly && (
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button type="submit" disabled={saving} className="button-primary" style={{ flex: 1 }}>{saving ? 'Saving...' : (category ? 'Update' : 'Create')}</button>
-            <button type="button" onClick={onDone} className="button-secondary" style={{ flex: 1 }}>Cancel</button>
+            <button type="submit" disabled={saving} className="button-primary" style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>{saving ? 'Saving...' : (
+              <>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                {category ? 'Update' : 'Create'}
+              </>
+            )}</button>
+            <button type="button" onClick={onDone} className="button-secondary" style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+              Cancel
+            </button>
           </div>
         )}
       </form>

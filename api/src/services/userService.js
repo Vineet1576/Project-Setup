@@ -16,6 +16,13 @@ const signToken = (payload, expiresIn) =>
 
 const USER_LOGIN_PRESERVE = ["role", "planId", "subscriptionId"];
 
+const capitalizeName = (name = "") =>
+  String(name)
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+
 const validateAge = (dob) => {
   if (!dob) return;
   const birthDate = new Date(dob);
@@ -83,14 +90,14 @@ exports.registerUser = async (data) => {
     notificationService.notifyAdmins({
       type: "system",
       title: "New member registration",
-      message: `${created.fullName} (${created.email}) registered and needs approval.`,
+      message: `${capitalizeName(created.fullName)} (${created.email}) registered and needs approval.`,
       metadata: { userId: created.id },
     });
   } else {
     notificationService.notifyAdmins({
       type: "system",
       title: "New user registration",
-      message: `${created.fullName} (${created.email}) has registered.`,
+      message: `${capitalizeName(created.fullName)} (${created.email}) has registered.`,
       metadata: { userId: created.id },
     });
   }
@@ -191,7 +198,13 @@ exports.adminLogin = async (data) => {
   }
   await userRepo.updateById(user.id, updateData);
 
-  const token = signToken({ id: user.id, role: user.role?.id, roleName: user.role?.name || "" });
+  const roleId = user.role?.id || user.role;
+  const roleName =
+    user.role?.name ||
+    (await roleRepo.findById(roleId).catch(() => null))?.name ||
+    "";
+
+  const token = signToken({ id: user.id, role: roleId, roleName });
   return { ...helper.omit(user, ["password", "verificationCode"]), access_token: token };
 };
 
@@ -324,7 +337,31 @@ exports.updateProfile = async (data) => {
     updateData.fullName = `${updatedFirstName} ${updatedLastName}`.trim();
   }
 
-  return userRepo.updateById(id, helper.omit(updateData, ["id"]));
+  const updated = await userRepo.updateById(id, helper.omit(updateData, ["id"]));
+
+  if (updated && (updated.email || isUser.email)) {
+    try {
+      const role = updated.role ? await roleRepo.findById(updated.role).catch(() => null) : null;
+      await Emails.updateUserInfoEmail({
+        email: updated.email || isUser.email,
+        fullName: updated.fullName || `${updated.firstName || ""} ${updated.lastName || ""}`.trim() || isUser.fullName,
+        firstName: updated.firstName || isUser.firstName,
+        lastName: updated.lastName || isUser.lastName,
+        mobile: updated.mobileNo || updated.mobileno || isUser.mobileNo || "",
+        address: updated.address || isUser.address,
+        city: updated.city || isUser.city,
+        state: updated.state || isUser.state,
+        country: updated.country || isUser.country,
+        pinCode: updated.pinCode || isUser.pinCode,
+        roleName: role?.name || role?.displayName || "",
+        status: updated.status || isUser.status,
+      });
+    } catch (err) {
+      console.error("Error sending user update email:", err.message);
+    }
+  }
+
+  return updated;
 };
 
 exports.getAllUsers = async (data) => {
@@ -425,6 +462,11 @@ exports.addUser = async (data) => {
 
   const existing = await userRepo.findByEmail(data.email);
   if (existing) throw constants.onBoarding.EMAIL_EXIST;
+
+  if (!data.role) {
+    const defaultRole = await roleRepo.findByName("user").catch(() => null) || await roleRepo.findByName("User").catch(() => null);
+    if (defaultRole) data.role = defaultRole.id || defaultRole._id;
+  }
 
   data.date_registered = date;
   data.createdAt = date;

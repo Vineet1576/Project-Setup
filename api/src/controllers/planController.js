@@ -34,7 +34,7 @@ module.exports = {
       const { id } = req.decryptedParams || req.query;
       const userId = req.identity?.id;
       const plan = await planService.planDetail({ id, userId });
-      return response.success({ plan }, constants.PLAN.Fetch, req, res);
+      return response.success(plan, constants.PLAN.Fetch, req, res);
     } catch (err) {
       next(err);
     }

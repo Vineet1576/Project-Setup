@@ -27,6 +27,24 @@ module.exports = {
     }
   },
 
+  crypto: async (req, res) => {
+    try {
+      const settings = await settingService.getSettings();
+      const config = (settings && settings.config) || {};
+      return res.status(200).json({
+        CRYPTO_SECURE_ENCRYPTION: config.CRYPTO_SECURE_ENCRYPTION || 'false',
+        SECRET_KEY: config.SECRET_KEY || '',
+        ENCRYPTION_IV: config.ENCRYPTION_IV || '',
+      });
+    } catch {
+      return res.status(200).json({
+        CRYPTO_SECURE_ENCRYPTION: 'false',
+        SECRET_KEY: '',
+        ENCRYPTION_IV: '',
+      });
+    }
+  },
+
   update: async (req, res, next) => {
     try {
       const data = { ...req.body };

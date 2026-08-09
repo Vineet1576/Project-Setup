@@ -58,8 +58,18 @@ export default function BroadcastPage() {
         <input type="text" placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required style={inputStyle} />
         <textarea placeholder="Message" value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} rows={4} required style={{ ...inputStyle, resize: 'vertical' }} />
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <button type="submit" disabled={sending} className="button-primary" style={{ flex: 1 }}>{sending ? 'Sending...' : 'Send'}</button>
-          <button type="button" onClick={() => navigate('/notifications')} className="button-secondary" style={{ flex: 1 }}>Cancel</button>
+          <button type="submit" disabled={sending} className="button-primary" style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            {sending ? 'Sending...' : (
+              <>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4 20-7z" /></svg>
+                Send
+              </>
+            )}
+          </button>
+          <button type="button" onClick={() => navigate('/notifications')} className="button-secondary" style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+            Cancel
+          </button>
         </div>
       </form>
     </FormPageLayout>

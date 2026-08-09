@@ -6,5 +6,6 @@ router.get('/detail', content.getContent);
 router.put('/update', content.editContent);
 router.get('/listing', content.listing);
 router.put('/status/change', content.statusUpdate);
+router.delete('/delete', content.deleteContent);
 
 module.exports = router;

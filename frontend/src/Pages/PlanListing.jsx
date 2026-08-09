@@ -5,6 +5,7 @@ import SiteFooter from '../components/common/SiteFooter';
 import apiClient from '../methods/api/apiClient';
 import { useToast } from '../components/common/Toast';
 import { useAuth } from '../context/AuthContext';
+import EmptyState from '../components/common/EmptyState';
 
 const PlanListing = () => {
   const [plans, setPlans] = useState([]);
@@ -195,9 +196,7 @@ const PlanListing = () => {
         </div>
 
         {plans.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-white/50">No plans available at the moment.</p>
-          </div>
+          <EmptyState title="No plans available at the moment" description="Check back soon — new subscription plans are on the way." />
         ) : (
           <div className="relative">
             {canScrollLeft && (

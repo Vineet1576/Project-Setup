@@ -87,7 +87,7 @@ sequenceDiagram
 | `userService.js` | `userRepository.js` | `User.js` |
 | `roleService.js` | `roleRepository.js` | `Role.js` |
 | `categoryService.js` | `categoryRepository.js` | `category.model.js` |
-| `contactUsService.js` | `contactUsRepository.js` | `ContactUs.model.js` |
+| `feedbackService.js` | `feedbackRepository.js` | `Feedback.model.js` |
 | `contentManagementService.js` | `contentManagementRepository.js` | `contentManagement.model.js` |
 | `featureService.js` | `featureRepository.js` | `featureModel.js` |
 | `planService.js` | `planRepository.js` | `planModel.js` |
@@ -149,7 +149,7 @@ src/
 │   ├── userController.js
 │   ├── roleController.js
 │   ├── categoryController.js
-│   ├── contactUsController.js
+│   ├── feedbackController.js
 │   ├── contentManagementController.js
 │   ├── featureController.js
 │   ├── planController.js
@@ -172,7 +172,7 @@ src/
 │   ├── userRepository.js
 │   ├── roleRepository.js
 │   ├── categoryRepository.js
-│   ├── contactUsRepository.js
+│   ├── feedbackRepository.js
 │   ├── contentManagementRepository.js
 │   ├── featureRepository.js
 │   ├── planRepository.js
@@ -188,7 +188,7 @@ src/
 │   ├── userService.js
 │   ├── roleService.js
 │   ├── categoryService.js
-│   ├── contactUsService.js
+│   ├── feedbackService.js
 │   ├── contentManagementService.js
 │   ├── featureService.js
 │   ├── planService.js

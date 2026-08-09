@@ -11,6 +11,11 @@ const links = [
     label: 'Transactions',
     icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 5H5c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2z" /><path d="M16 13v.01" /><path d="M12 13v.01" /><path d="M8 13v.01" /></svg>,
   },
+  {
+    to: '/my-feedback',
+    label: 'My Feedback',
+    icon: <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>,
+  },
 ];
 
 export default function ProfileSidebar() {

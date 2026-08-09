@@ -1,7 +1,8 @@
 import RowMenu from './RowMenu';
 import SkeletonLoader from './SkeletonLoader';
+import EmptyState from './EmptyState';
 
-export default function DataTable({ columns, data, onEdit, onDelete, onView, loading }) {
+export default function DataTable({ columns, data, onEdit, onDelete, onView, onRowClick, loading }) {
   if (loading) return <SkeletonLoader variant="table" rows={6} />;
 
   return (
@@ -17,13 +18,18 @@ export default function DataTable({ columns, data, onEdit, onDelete, onView, loa
         </thead>
         <tbody>
           {data.map((row, i) => (
-            <tr key={row._id || row.id || i} style={{ borderTop: '1px solid rgba(255,255,255,0.06)', transition: 'background 0.15s ease' }} className="table-row-hover">
+            <tr
+              key={row._id || row.id || i}
+              onClick={onRowClick ? (e) => onRowClick(row, e) : undefined}
+              style={{ borderTop: '1px solid rgba(255,255,255,0.06)', transition: 'background 0.15s ease', cursor: onRowClick ? 'pointer' : undefined }}
+              className="table-row-hover"
+            >
               {columns.map((col) => (
                 <td key={col.key} style={{ padding: '12px 16px', fontSize: 14, textAlign: 'left', color: 'rgba(255,255,255,0.85)' }}>
                   {col.render ? col.render(row[col.key], row) : row[col.key] || '-'}
                 </td>
               ))}
-              <td style={{ padding: '12px 16px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+              <td style={{ padding: '12px 16px', textAlign: 'center', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
                 <RowMenu
                   items={[
                     ...(onView ? [{ label: 'View', icon: ViewIcon, onClick: () => onView(row) }] : []),
@@ -35,7 +41,7 @@ export default function DataTable({ columns, data, onEdit, onDelete, onView, loa
             </tr>
           ))}
           {data.length === 0 && (
-            <tr><td colSpan={columns.length + 1} style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.4)' }}>No records found</td></tr>
+            <tr><td colSpan={columns.length + 1} style={{ padding: 0 }}><EmptyState /></td></tr>
           )}
         </tbody>
       </table>

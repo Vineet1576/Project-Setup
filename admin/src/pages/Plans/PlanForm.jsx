@@ -32,6 +32,7 @@ export default function PlanForm({ record, onDone, readOnly = false }) {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const descRef = useRef(null);
+  const errorRef = useRef(null);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -40,6 +41,12 @@ export default function PlanForm({ record, onDone, readOnly = false }) {
       descRef.current.style.height = `${descRef.current.scrollHeight}px`;
     }
   }, [form.description]);
+
+  useEffect(() => {
+    if (error && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [error]);
 
   useEffect(() => {
     featuresApi.list({ count: 100 })
@@ -122,7 +129,7 @@ export default function PlanForm({ record, onDone, readOnly = false }) {
 
   return (
     <>
-      {error && <div className="status-message status-error">{error}</div>}
+      {error && <div ref={errorRef} className="status-message status-error">{error}</div>}
       <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20, flex: '1 1 440px', minWidth: 0 }}>
           <SectionTitle>Plan details</SectionTitle>
@@ -258,8 +265,16 @@ export default function PlanForm({ record, onDone, readOnly = false }) {
 
           {!readOnly && (
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button type="submit" disabled={saving} className="button-primary" style={{ flex: 1 }}>{saving ? 'Saving...' : (plan ? 'Update' : 'Create')}</button>
-              <button type="button" onClick={onDone} className="button-secondary" style={{ flex: 1 }}>Cancel</button>
+              <button type="submit" disabled={saving} className="button-primary" style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>{saving ? 'Saving...' : (
+                <>
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                  {plan ? 'Update' : 'Create'}
+                </>
+              )}</button>
+              <button type="button" onClick={onDone} className="button-secondary" style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+                Cancel
+              </button>
             </div>
           )}
         </form>

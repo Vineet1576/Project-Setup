@@ -3,7 +3,7 @@
 router.use("/users", require("./userRoutes"));
 router.use("/roles", require("./roleRoutes"));
 router.use("/category", require("./category.routes"));
-router.use("/feedback", require("./ContactUs.routes"));
+router.use("/feedback", require("./Feedback.routes"));
 router.use("/content-management", require("./contentManagement.routes"));
 router.use("/features", require("./featureRoutes"));
 router.use("/plans", require("./planRoutes"));

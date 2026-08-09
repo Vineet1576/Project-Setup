@@ -26,3 +26,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </React.StrictMode>,
 );
+
+window.addEventListener('load', () => {
+  const bootLoader = document.getElementById('app-loader');
+  if (bootLoader) {
+    bootLoader.classList.add('app-loader-hidden');
+    setTimeout(() => bootLoader.remove(), 500);
+  }
+});

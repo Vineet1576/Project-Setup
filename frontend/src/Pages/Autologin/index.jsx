@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { authApi } from '../../methods/api/auth';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth, saveAuth } from '../../context/AuthContext';
 import AuthLayout from '../../components/AuthLayout';
 import Brand from '../../components/common/Brand';
 import { useToast } from '../../components/common/Toast';
@@ -32,7 +32,7 @@ export default function Autologin() {
           return;
         }
         const authData = { user: data, token };
-        localStorage.setItem('auth', JSON.stringify(authData));
+        saveAuth(authData);
         setAuth(authData);
         toast.showToast('Login successful', 'success');
         navigate('/profile', { replace: true });

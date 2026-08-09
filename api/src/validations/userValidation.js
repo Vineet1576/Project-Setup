@@ -90,7 +90,7 @@ UserValidations.addUser = async (req) => {
     lastName: Joi.string().trim().max(50).optional().allow(''),
     email: Joi.string().email().required(),
     password: Joi.string().min(8).max(128).optional(),
-    role: Joi.string().required(),
+    role: Joi.string().optional(),
     mobileno: Joi.string().optional().allow(''),
     address: Joi.string().optional().allow(''),
     city: Joi.string().optional().allow(''),

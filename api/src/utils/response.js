@@ -81,6 +81,14 @@ exports.success = (payload = {}, message = "", req, res) => {
   const statusCode = 200;
 
   if (useCryptoSecure) {
+    if (typeof payload === "string") {
+      return res.status(statusCode).json({
+        success: true,
+        code: statusCode,
+        message,
+        data: payload,
+      });
+    }
     return res.status(statusCode).json({
       success: true,
       code: statusCode,

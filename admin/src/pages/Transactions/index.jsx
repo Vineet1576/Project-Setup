@@ -7,6 +7,8 @@ import useDebouncedValue from '../../components/common/useDebouncedValue';
 import { useToast } from '../../components/common/Toast';
 import { capitalizeName } from '../../utils/name';
 import Pagination from '../../components/common/Pagination';
+import EmptyState from '../../components/common/EmptyState';
+import { useRecord } from '../../context/RecordContext';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : '-');
 
@@ -102,9 +104,11 @@ const columns = [
 
 export default function Transactions() {
   const navigate = useNavigate();
+  const { setActiveId } = useRecord();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const { showToast } = useToast();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
@@ -168,15 +172,23 @@ export default function Transactions() {
     }
   };
 
-  const handleRefresh = () => {
-    fetchTransactions();
-    fetchAnalytics();
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await Promise.all([fetchTransactions(), fetchAnalytics()]);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   return (
     <div>
       <PageHeader eyebrow="Billing" title="Transactions">
-        <button onClick={handleRefresh} className="button-secondary">Refresh</button>
+        <button onClick={handleRefresh} className="button-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <svg className={refreshing ? 'spin' : ''} viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></svg>
+          {refreshing ? 'Refreshing...' : 'Refresh'}
+        </button>
       </PageHeader>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 14, marginBottom: 18 }}>
@@ -271,7 +283,7 @@ export default function Transactions() {
                       <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
                         <button
                           type="button"
-                          onClick={() => navigate(`/transactions/view/${row._id || row.id}`, { state: { record: row } })}
+                          onClick={() => { setActiveId(row._id || row.id); navigate('/transactions/view', { state: { record: row } }); }}
                           className="button-secondary"
                           title="View transaction"
                           style={{ padding: '6px 12px', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}
@@ -285,7 +297,7 @@ export default function Transactions() {
                 </tr>
               ))}
               {!loading && transactions.length === 0 && (
-                <tr><td colSpan={columns.length + 1} style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>No records found</td></tr>
+                <tr><td colSpan={columns.length + 1} style={{ padding: 0 }}><EmptyState /></td></tr>
               )}
               {loading && (
                 <tr>

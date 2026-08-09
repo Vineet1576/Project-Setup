@@ -8,10 +8,15 @@ import useDebouncedValue from '../../components/common/useDebouncedValue';
 import { useToast } from '../../components/common/Toast';
 import StatusToggle from '../../components/common/StatusToggle';
 import { fmtDateTime } from '../../utils/date';
+import { capitalizeName } from '../../utils/name';
 import Pagination from '../../components/common/Pagination';
+import { useConfirm } from '../../context/ConfirmContext';
+import { useRecord } from '../../context/RecordContext';
 
 export default function ContentManagement() {
   const navigate = useNavigate();
+  const confirm = useConfirm();
+  const { setActiveId } = useRecord();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState('');
@@ -38,8 +43,25 @@ export default function ContentManagement() {
 
   useEffect(() => { setPage(1); }, [debouncedSearch, status]);
 
-  const goView = (item) => navigate(`/content-management/view/${item.id || item._id}`, { state: { record: item } });
-  const goEdit = (item) => navigate(`/content-management/edit/${item.id || item._id}`, { state: { record: item } });
+  const goView = (item) => { setActiveId(item.id || item._id); navigate('/content-management/view', { state: { record: item } }); };
+  const goEdit = (item) => { setActiveId(item.id || item._id); navigate('/content-management/edit', { state: { record: item } }); };
+
+  const handleDelete = async (item) => {
+    const ok = await confirm({
+      title: 'Delete Content?',
+      message: `This will permanently delete "${item.title}". This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+    });
+    if (!ok) return;
+    try {
+      await contentApi.delete({ id: item.id || item._id });
+      showToast('Content deleted', 'success');
+      fetchItems();
+    } catch (err) {
+      showToast(err.response?.data?.error?.message || err.response?.data?.message || 'Failed to delete content', 'error');
+    }
+  };
 
   const handleToggleStatus = async (item) => {
     const id = item.id || item._id;
@@ -57,9 +79,8 @@ export default function ContentManagement() {
   };
 
   const columns = [
-    { key: 'title', label: 'Title' },
+    { key: 'title', label: 'Title', render: (v) => capitalizeName(v) },
     { key: 'slug', label: 'Slug', render: (v) => v || '-' },
-    { key: 'type', label: 'Type', render: (v) => v || '-' },
     { key: 'status', label: 'Status', render: (v, row) => (
       <StatusToggle value={v || 'active'} loading={togglingId === (row.id || row._id)} onToggle={() => handleToggleStatus(row)} />
     )},
@@ -84,7 +105,7 @@ export default function ContentManagement() {
         ]}
       />
 
-      <DataTable columns={columns} data={items} onView={goView} onEdit={goEdit} loading={loading} />
+      <DataTable columns={columns} data={items} onView={goView} onEdit={goEdit} onDelete={handleDelete} loading={loading} />
       <Pagination page={page} count={pageSize} total={total} onPageChange={setPage} onCountChange={(n) => { setPageSize(n); setPage(1); }} />
     </div>
   );

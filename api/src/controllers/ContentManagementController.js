@@ -77,4 +77,19 @@ module.exports = {
       next(err);
     }
   },
+
+  deleteContent: async (req, res, next) => {
+    try {
+      const { id } = req.decryptedParams || req.body;
+      await contentManagementService.deleteContent({ id });
+      return response.success(
+        null,
+        constants.CONTENT_MANAGEMENT.DELETED,
+        req,
+        res,
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
 };

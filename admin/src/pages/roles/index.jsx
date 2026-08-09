@@ -10,10 +10,13 @@ import StatusToggle from '../../components/common/StatusToggle';
 import { fmtDateTime } from '../../utils/date';
 import Pagination from '../../components/common/Pagination';
 import { useConfirm } from '../../context/ConfirmContext';
+import { useRecord } from '../../context/RecordContext';
+import { capitalizeName } from '../../utils/name';
 
 export default function RoleList() {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const { setActiveId } = useRecord();
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState('');
@@ -40,8 +43,8 @@ export default function RoleList() {
 
   useEffect(() => { setPage(1); }, [debouncedSearch, status]);
 
-  const goView = (role) => navigate(`/roles/view/${role.id || role._id}`, { state: { record: role } });
-  const goEdit = (role) => navigate(`/roles/edit/${role.id || role._id}`, { state: { record: role } });
+  const goView = (role) => { setActiveId(role.id || role._id); navigate('/roles/view', { state: { record: role } }); };
+  const goEdit = (role) => { setActiveId(role.id || role._id); navigate('/roles/edit', { state: { record: role } }); };
 
   const handleDelete = async (role) => {
     const ok = await confirm({
@@ -76,8 +79,8 @@ export default function RoleList() {
   };
 
   const columns = [
-    { key: 'name', label: 'Role Name' },
-    { key: 'displayName', label: 'Display Name' },
+    { key: 'name', label: 'Role Name', render: (v) => <span style={{ fontWeight: 600, color: '#fff' }}>{capitalizeName(v) || '-'}</span> },
+    { key: 'displayName', label: 'Display Name', render: (v, row) => capitalizeName(v) || capitalizeName(row.name) || '-' },
     { key: 'status', label: 'Status', render: (v, row) => (
       <StatusToggle value={v || 'active'} loading={togglingId === (row.id || row._id)} onToggle={() => handleToggleStatus(row)} />
     )},

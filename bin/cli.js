@@ -196,22 +196,9 @@ CORS_ORIGIN=*    # Set to your frontend URL in production (e.g., https://example
     ]);
 
     if (createEnv) {
-      const { useCryptoSecure } = await inquirer.prompt([
-        {
-          type: "confirm",
-          name: "useCryptoSecure",
-          message: "Use crypto-secure encryption (RSA+AES-GCM)?",
-          default: false,
-        },
-      ]);
-
-      const secretKey = generateSecretKey();
-      const encryptionIv = generateEncryptionIv();
-
       frontendEnvContent = `VITE_API_BASE_URL=http://localhost:4000
-VITE_CRYPTO_SECURE_ENCRYPTION=${useCryptoSecure ? "true" : "false"}
-SECRET_KEY=${secretKey}
-ENCRYPTION_IV=${encryptionIv}
+# Crypto keys (CRYPTO_SECURE_ENCRYPTION, SECRET_KEY, ENCRYPTION_IV) are
+# fetched at runtime from GET /settings/crypto — no env keys needed here.
 `;
     }
   }
@@ -227,22 +214,9 @@ ENCRYPTION_IV=${encryptionIv}
     ]);
 
     if (createEnv) {
-      const { useCryptoSecure } = await inquirer.prompt([
-        {
-          type: "confirm",
-          name: "useCryptoSecure",
-          message: "Use crypto-secure encryption (RSA+AES-GCM)?",
-          default: false,
-        },
-      ]);
-
-      const secretKey = generateSecretKey();
-      const encryptionIv = generateEncryptionIv();
-
       adminEnvContent = `VITE_API_BASE_URL=http://localhost:4000
-VITE_CRYPTO_SECURE_ENCRYPTION=${useCryptoSecure ? "true" : "false"}
-SECRET_KEY=${secretKey}
-ENCRYPTION_IV=${encryptionIv}
+# Crypto keys (CRYPTO_SECURE_ENCRYPTION, SECRET_KEY, ENCRYPTION_IV) are
+# fetched at runtime from GET /settings/crypto — no env keys needed here.
 `;
     }
   }

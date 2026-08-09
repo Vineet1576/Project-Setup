@@ -8,6 +8,7 @@ import useDebouncedValue from '../../components/common/useDebouncedValue';
 import { useToast } from '../../components/common/Toast';
 import StatusToggle from '../../components/common/StatusToggle';
 import { useConfirm } from '../../context/ConfirmContext';
+import { useRecord } from '../../context/RecordContext';
 import { fmtDateTime } from '../../utils/date';
 import Pagination from '../../components/common/Pagination';
 
@@ -21,6 +22,7 @@ const fmtPrice = (pricing) => {
 export default function Plans() {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const { setActiveId } = useRecord();
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState('');
@@ -47,8 +49,8 @@ export default function Plans() {
 
   useEffect(() => { setPage(1); }, [debouncedSearch, status]);
 
-  const goView = (plan) => navigate(`/plans/view/${plan.id || plan._id}`, { state: { record: plan } });
-  const goEdit = (plan) => navigate(`/plans/edit/${plan.id || plan._id}`, { state: { record: plan } });
+  const goView = (plan) => { setActiveId(plan.id || plan._id); navigate('/plans/view', { state: { record: plan } }); };
+  const goEdit = (plan) => { setActiveId(plan.id || plan._id); navigate('/plans/edit', { state: { record: plan } }); };
 
   const handleDelete = async (plan) => {
     const ok = await confirm({

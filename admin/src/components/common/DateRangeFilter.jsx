@@ -175,9 +175,15 @@ export default function DateRangeFilter({ onChange }) {
                 : 'Pick a start date'}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setDraft({ start: null, end: null })} className="button-secondary">Clear</button>
-            <button onClick={() => setShowCalendar(false)} className="button-secondary">Cancel</button>
-            <button onClick={applyCustom} disabled={!draft.start || !draft.end} className="button-primary" style={{ opacity: draft.start && draft.end ? 1 : 0.5 }}>Apply</button>
+            <button onClick={() => setDraft({ start: null, end: null })} className="button-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>Clear</button>
+            <button onClick={() => setShowCalendar(false)} className="button-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+              Cancel
+            </button>
+            <button onClick={applyCustom} disabled={!draft.start || !draft.end} className="button-primary" style={{ opacity: draft.start && draft.end ? 1 : 0.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+              Apply
+            </button>
           </div>
         </div>
       </div>

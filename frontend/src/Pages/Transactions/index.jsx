@@ -9,6 +9,7 @@ import { transactionsApi } from '../../methods/api/transactions';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/common/Toast';
 import { capitalizeName } from '../../utils/name';
+import EmptyState from '../../components/common/EmptyState';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : '-');
 
@@ -40,6 +41,8 @@ export default function Transactions() {
   const { showToast } = useToast();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [downloadingId, setDownloadingId] = useState('');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
@@ -66,18 +69,27 @@ export default function Transactions() {
 
   useEffect(() => { setPage(1); }, [debouncedSearch, status]);
 
-  const handleRefresh = () => {
-    fetchTransactions();
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await fetchTransactions();
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleDownload = async (tx) => {
+    const id = tx._id || tx.id;
+    if (downloadingId) return;
+    setDownloadingId(id);
     try {
-      const res = await transactionsApi.download({ id: tx._id || tx.id });
+      const res = await transactionsApi.download({ id });
       const blob = new Blob([res.data], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `invoice_${tx._id || tx.id}.pdf`;
+      link.download = `invoice_${id}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -96,18 +108,9 @@ export default function Transactions() {
         // keep fallback message
       }
       showToast(message, 'error');
+    } finally {
+      setDownloadingId('');
     }
-  };
-
-  const detailRows = (tx) => {
-    const iv = tx.interval || tx.planDetails?.interval;
-    return [
-      { label: 'Date', value: fmtDateTime(tx.createdAt) },
-      { label: 'Customer', value: capitalizeName(tx.subscriberInfo?.name) || tx.subscriberInfo?.email || tx.userId || '-' },
-      { label: 'Email', value: tx.subscriberInfo?.email || '-' },
-      { label: 'Plan', value: tx.planDetails?.name || tx.plan_name || '-' },
-      { label: 'Plan Interval', value: intervalLabel(iv) || '-', badge: intervalStyle(iv) },
-    ];
   };
 
   const columns = [
@@ -175,7 +178,10 @@ export default function Transactions() {
 
         <main className="flex-1 min-w-0 px-4 lg:px-8 py-8">
             <PageHeader eyebrow="Billing" title="Transactions">
-              <button onClick={handleRefresh} className="button-secondary">Refresh</button>
+              <button onClick={handleRefresh} className="button-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <svg className={refreshing ? 'spin' : ''} viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></svg>
+                {refreshing ? 'Refreshing...' : 'Refresh'}
+              </button>
             </PageHeader>
 
             <TableFilters
@@ -215,7 +221,12 @@ export default function Transactions() {
                   </thead>
                   <tbody>
                     {!loading && transactions.map((row, i) => (
-                      <tr key={row._id || row.id || i} style={{ borderTop: '1px solid var(--hairline)' }}>
+                      <tr
+                        key={row._id || row.id || i}
+                        className="tx-row"
+                        onClick={() => setViewTx(row)}
+                        style={{ borderTop: '1px solid var(--hairline)' }}
+                      >
                         {columns.map((col) => (
                           <td key={col.key} style={{
                             padding: '12px 16px',
@@ -235,7 +246,7 @@ export default function Transactions() {
                           <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
                             <button
                               type="button"
-                              onClick={() => setViewTx(row)}
+                              onClick={(e) => { e.stopPropagation(); setViewTx(row); }}
                               className="button-secondary"
                               title="View transaction"
                               style={{ padding: '6px 12px', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}
@@ -244,19 +255,25 @@ export default function Transactions() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleDownload(row)}
+                              onClick={(e) => { e.stopPropagation(); handleDownload(row); }}
                               className="button-secondary"
                               title="Download invoice"
-                              style={{ padding: '6px 12px', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                              disabled={!!downloadingId}
+                              style={{ padding: '6px 12px', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6, opacity: downloadingId ? 0.6 : 1, cursor: downloadingId ? 'not-allowed' : 'pointer' }}
                             >
-                              {DownloadIcon} Download Invoice
+                              {downloadingId === (row._id || row.id) ? (
+                                <span className="spin" style={{ display: 'inline-flex' }}>
+                                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 2a10 10 0 1 0 10 10" /></svg>
+                                </span>
+                              ) : DownloadIcon}
+                              {downloadingId === (row._id || row.id) ? 'Downloading...' : 'Download Invoice'}
                             </button>
                           </div>
                         </td>
                       </tr>
                     ))}
                     {!loading && transactions.length === 0 && (
-                      <tr><td colSpan={columns.length + 1} style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>No records found</td></tr>
+                      <tr><td colSpan={columns.length + 1} style={{ padding: 0 }}><EmptyState /></td></tr>
                     )}
                     {loading && (
                       <tr>
@@ -289,9 +306,9 @@ export default function Transactions() {
                 <div
                   className="panel-card"
                   onClick={(e) => e.stopPropagation()}
-                  style={{ width: '100%', maxWidth: 600, padding: 0, overflow: 'hidden', maxHeight: '88vh', display: 'flex', flexDirection: 'column', animation: 'pop-in 0.25s cubic-bezier(0.16, 1, 0.3, 1)', boxShadow: '0 40px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(59,130,246,0.15)' }}
+                  style={{ width: '100%', maxWidth: 640, padding: 0, overflow: 'hidden', maxHeight: '90vh', display: 'flex', flexDirection: 'column', animation: 'pop-in 0.25s cubic-bezier(0.16, 1, 0.3, 1)', boxShadow: '0 40px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(59,130,246,0.15)' }}
                 >
-                  <div style={{ position: 'relative', padding: '28px', background: 'radial-gradient(circle at 15% 15%, rgba(96,165,250,0.32), transparent 45%), radial-gradient(circle at 85% 80%, rgba(59,130,246,0.2), transparent 50%), linear-gradient(135deg, #1e3a8a, #0b0b10)', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
+                  <div style={{ position: 'relative', padding: '26px 28px 22px', background: 'radial-gradient(circle at 12% 0%, rgba(96,165,250,0.35), transparent 45%), radial-gradient(circle at 88% 100%, rgba(139,92,246,0.22), transparent 50%), linear-gradient(135deg, #101323, #0b0b10)', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
                     <button
                       onClick={() => setViewTx(null)}
                       aria-label="Close"
@@ -299,42 +316,113 @@ export default function Transactions() {
                     >
                       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
                     </button>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 999, border: '1px solid rgba(96,165,250,0.35)', background: 'rgba(59,130,246,0.15)', color: '#93c5fd', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                      Transaction
-                    </span>
-                    <h3 style={{ margin: '12px 0 0', fontSize: 17, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'SFMono-Regular', Consolas, monospace", paddingRight: 40 }}>
-                      {viewTx.transactionId || viewTx._id || 'Transaction details'}
-                    </h3>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, marginTop: 20 }}>
-                      <div>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Amount Charged</div>
-                        <div style={{ fontSize: 34, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', lineHeight: 1 }}>{fmtMoney(viewTx.amount)}</div>
-                      </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 999, border: '1px solid rgba(96,165,250,0.35)', background: 'rgba(59,130,246,0.15)', color: '#93c5fd', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M16 13H8" /><path d="M16 17H8" /></svg>
+                        Transaction
+                      </span>
                       {(() => {
                         const st = statusStyle(viewTx.status);
                         return (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 14px', borderRadius: 999, border: `1px solid ${st.border}`, background: st.bg, color: st.color, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: st.color, boxShadow: `0 0 12px ${st.glow}` }} />
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 12px', borderRadius: 999, border: `1px solid ${st.border}`, background: st.bg, color: st.color, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.color, boxShadow: `0 0 10px ${st.glow}` }} />
                             {viewTx.status || '-'}
                           </span>
                         );
                       })()}
                     </div>
-                  </div>
 
-                  <div style={{ padding: 24, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {detailRows(viewTx).map((r) => (
-                      <div key={r.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '12px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)' }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>{r.label}</div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', overflowWrap: 'anywhere', textAlign: 'right', minWidth: 0 }}>
-                          {r.badge ? (
-                            <span style={{ color: r.badge.color, background: r.badge.bg, border: `1px solid ${r.badge.border}`, borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                              {r.value}
-                            </span>
-                          ) : r.value}
+                    <div style={{ marginTop: 14, fontSize: 16, fontWeight: 700, color: '#fff', fontFamily: "'SFMono-Regular', Consolas, monospace", letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 40 }}>
+                      {viewTx.transactionId || viewTx._id || 'Transaction details'}
+                    </div>
+                    {viewTx.invoiceId && (
+                      <div style={{ marginTop: 2, fontSize: 12, color: 'rgba(255,255,255,0.45)', fontFamily: "'SFMono-Regular', Consolas, monospace" }}>
+                        Invoice {viewTx.invoiceId}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, marginTop: 18, flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Amount Charged</div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                          <span style={{ fontSize: 32, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', lineHeight: 1 }}>{fmtMoney(viewTx.amount)}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{viewTx.currency || 'usd'}</span>
                         </div>
                       </div>
-                    ))}
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Date</div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>{fmtDateTime(viewTx.createdAt)}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: 22, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
+                    <ModalSection icon={PlanIcon} title="Plan details">
+                      {viewTx.planDetails?.name && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(59,130,246,0.3)', background: 'rgba(59,130,246,0.08)', marginBottom: 10 }}>
+                          <span style={{ width: 38, height: 38, borderRadius: 11, background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 16, boxShadow: '0 8px 20px -8px rgba(59,130,246,0.7)', flexShrink: 0 }}>
+                            {(viewTx.planDetails.name || 'P').charAt(0).toUpperCase()}
+                          </span>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viewTx.planDetails.name}</div>
+                            {viewTx.planDetails.plan_type && (
+                              <div style={{ fontSize: 12, color: 'var(--muted)', textTransform: 'capitalize' }}>{viewTx.planDetails.plan_type} plan</div>
+                            )}
+                          </div>
+                          {(() => {
+                            const iv = viewTx.interval || viewTx.planDetails?.interval;
+                            const style = intervalStyle(iv);
+                            return iv ? (
+                              <span style={{ marginLeft: 'auto', color: style.color, background: style.bg, border: `1px solid ${style.border}`, borderRadius: 999, padding: '2px 8px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0 }}>
+                                {intervalLabel(iv)}
+                              </span>
+                            ) : null;
+                          })()}
+                        </div>
+                      )}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+                        <ModalRow label="Billing cycle" value={(() => { const iv = viewTx.interval || viewTx.planDetails?.interval; return intervalLabel(iv) || '-'; })()} />
+                        <ModalRow label="Plan type" value={viewTx.planDetails?.plan_type ? capitalizeName(viewTx.planDetails.plan_type) : '-'} />
+                      </div>
+                    </ModalSection>
+
+                    <ModalSection icon={UserIcon} title="Customer">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)' }}>
+                        {viewTx.subscriberInfo?.image ? (
+                          <img src={viewTx.subscriberInfo.image} alt="" style={{ width: 40, height: 40, borderRadius: 12, objectFit: 'cover', flexShrink: 0 }} />
+                        ) : (
+                          <span style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%)', color: '#fff', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {(viewTx.subscriberInfo?.name || viewTx.subscriberInfo?.email || 'U').charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {capitalizeName(viewTx.subscriberInfo?.name) || viewTx.subscriberInfo?.email || 'Customer'}
+                          </div>
+                          {viewTx.subscriberInfo?.email && (
+                            <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viewTx.subscriberInfo.email}</div>
+                          )}
+                        </div>
+                      </div>
+                    </ModalSection>
+                  </div>
+
+                  <div style={{ padding: '16px 22px', borderTop: '1px solid var(--hairline)', background: 'rgba(255,255,255,0.02)', flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      onClick={() => handleDownload(viewTx)}
+                      className="button-primary"
+                      disabled={!!downloadingId}
+                      style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: downloadingId ? 0.6 : 1, cursor: downloadingId ? 'not-allowed' : 'pointer' }}
+                    >
+                      {downloadingId === (viewTx._id || viewTx.id) ? (
+                        <span className="spin" style={{ display: 'inline-flex' }}>
+                          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 2a10 10 0 1 0 10 10" /></svg>
+                        </span>
+                      ) : DownloadIcon}
+                      {downloadingId === (viewTx._id || viewTx.id) ? 'Downloading...' : 'Download Invoice'}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -342,6 +430,31 @@ export default function Transactions() {
           </main>
         </div>
     </Layout>
+  );
+}
+
+function ModalSection({ icon, title, children }) {
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <span style={{ width: 26, height: 26, borderRadius: 8, background: 'rgba(59,130,246,0.12)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#93c5fd', flexShrink: 0 }}>
+          {icon}
+        </span>
+        <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--muted)' }}>{title}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ModalRow({ label, value, mono }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, padding: '11px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)' }}>
+      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)', textAlign: 'right', overflowWrap: 'anywhere', minWidth: 0, fontFamily: mono ? "'SFMono-Regular', Consolas, monospace" : undefined }}>
+        {value}
+      </span>
+    </div>
   );
 }
 
@@ -360,4 +473,10 @@ const ViewIcon = (
 );
 const DownloadIcon = (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
+);
+const PlanIcon = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 2 8.5 4.5v9L12 20l-8.5-4.5v-9L12 2Z" /><path d="M12 11 3.5 6.5" /><path d="M12 11v9" /><path d="m20.5 6.5-8.5 4.5" /></svg>
+);
+const UserIcon = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
 );

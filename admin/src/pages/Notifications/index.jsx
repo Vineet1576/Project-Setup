@@ -175,7 +175,7 @@ export default function Notifications() {
             onClick={(e) => e.stopPropagation()}
             style={{ width: '100%', maxWidth: 560, padding: 0, overflow: 'hidden', animation: 'pop-in 0.25s cubic-bezier(0.16, 1, 0.3, 1)', boxShadow: '0 40px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(59,130,246,0.15)' }}
           >
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px', background: 'radial-gradient(circle at 15% 15%, rgba(96,165,250,0.35), transparent 45%), radial-gradient(circle at 85% 80%, rgba(59,130,246,0.22), transparent 50%), linear-gradient(135deg, #1e3a8a, #0b0b10)', borderBottom: '1px solid var(--hairline)' }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 16, padding: '24px 28px', background: 'radial-gradient(circle at 12% 0%, rgba(96,165,250,0.28), transparent 42%), radial-gradient(circle at 90% 100%, rgba(139,92,246,0.22), transparent 45%), linear-gradient(135deg, #101323, #0b0b10)', borderBottom: '1px solid var(--hairline)' }}>
               <button
                 onClick={() => setViewN(null)}
                 aria-label="Close"

@@ -18,7 +18,7 @@ export default function VerifyEmail() {
       try {
         const decoded = atob(token.replace(/-/g, '+').replace(/_/g, '/'));
         const { id, code } = JSON.parse(decodeURIComponent(decoded));
-        const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+        const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
         const res = await fetch(`${API_BASE}/users/verify?id=${encodeURIComponent(id)}&code=${encodeURIComponent(code)}`, { redirect: 'manual' });
 
         if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400) || res.ok) {

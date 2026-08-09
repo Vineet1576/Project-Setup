@@ -12,6 +12,7 @@ const stack = [
   'axios',
   'JWT',
   'crypto-secure',
+  'Web Crypto API',
   'node-forge',
   'Helmet',
 ];
@@ -74,7 +75,7 @@ const features = [
   },
   {
     title: 'Transparent encryption',
-    desc: 'Axios interceptors auto-detect crypto-secure or legacy mode and encrypt every request for you.',
+    desc: 'Axios interceptors fetch crypto config from the API at runtime and auto-detect crypto-secure or legacy mode, encrypting every request for you.',
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="16 18 22 12 16 6" />
@@ -87,21 +88,26 @@ const features = [
 const pipeline = [
   {
     step: '01',
-    title: 'Fetch the public key',
-    desc: 'On boot the client requests GET /.well-known/encryption-key and receives the server RSA-2048 public key.',
+    title: 'Load crypto config',
+    desc: 'On boot the client fetches GET /settings/crypto and reads CRYPTO_SECURE_ENCRYPTION, SECRET_KEY, and ENCRYPTION_IV from the database — no static env keys in the bundle.',
   },
   {
     step: '02',
-    title: 'Generate ephemeral keys',
-    desc: 'A fresh client RSA keypair is generated in-browser via Web Crypto. The private key never leaves memory.',
+    title: 'Fetch the public key',
+    desc: 'When crypto-secure is enabled, the client requests GET /.well-known/encryption-key and receives the server RSA-2048 public key.',
   },
   {
     step: '03',
-    title: 'Encrypt the payload',
-    desc: 'The request body is encrypted with AES-256-GCM and the session key is wrapped with the server RSA key (OAEP).',
+    title: 'Generate ephemeral keys',
+    desc: 'A fresh client ECDH keypair is generated in-browser via Web Crypto. The private key never leaves memory.',
   },
   {
     step: '04',
+    title: 'Encrypt the payload',
+    desc: 'The request body is encrypted with AES-256-GCM and the session key is wrapped with the server RSA key (OAEP). In legacy mode, AES-CBC with the shared secret/IV is used.',
+  },
+  {
+    step: '05',
     title: 'Decrypt server-side',
     desc: 'The server unwraps the key and decrypts transparently. Responses flow back through the same pipeline.',
   },
@@ -109,8 +115,12 @@ const pipeline = [
 
 const securityCards = [
   {
+    title: 'Config from database',
+    desc: 'CRYPTO_SECURE_ENCRYPTION, SECRET_KEY, and ENCRYPTION_IV are fetched at runtime via GET /settings/crypto — no static env keys in the client bundle.',
+  },
+  {
     title: 'Zero key files on disk',
-    desc: 'The RSA keypair is generated on first run and written directly to .env. There is no keys/ directory to leak.',
+    desc: 'The ECDH keypair is generated on first run and written directly to .env. There is no keys/ directory to leak.',
   },
   {
     title: 'CORS deny-by-default',
@@ -182,24 +192,26 @@ export default function Home() {
                 RSA+AES-GCM encryption on every request via{' '}
                 <code className="text-blue-300 font-mono text-[0.9em]">crypto-secure</code>.
               </p>
-              <div className="mt-8 flex flex-col sm:flex-row items-start gap-4">
-                <Link
-                  to="/register"
-                  className="inline-flex items-center justify-center h-12 rounded-xl px-8 font-semibold text-white bg-gradient-to-r from-[#60a5fa] to-[#3b82f6] shadow-[0_12px_32px_-12px_rgba(59,130,246,0.8)] hover:opacity-90 transition-opacity"
-                >
-                  Create your account
-                </Link>
-                <Link
-                  to="/login"
-                  className="inline-flex items-center justify-center h-12 rounded-xl px-8 font-semibold text-white border border-white/15 bg-white/5 hover:bg-white/10 transition-colors"
-                >
-                  Sign in
-                </Link>
-              </div>
+              {!auth && (
+                <div className="mt-8 flex flex-col sm:flex-row items-start gap-4">
+                  <Link
+                    to="/register"
+                    className="inline-flex items-center justify-center h-12 rounded-xl px-8 font-semibold text-white bg-gradient-to-r from-[#60a5fa] to-[#3b82f6] shadow-[0_12px_32px_-12px_rgba(59,130,246,0.8)] hover:opacity-90 transition-opacity"
+                  >
+                    Create your account
+                  </Link>
+                  <Link
+                    to="/login"
+                    className="inline-flex items-center justify-center h-12 rounded-xl px-8 font-semibold text-white border border-white/15 bg-white/5 hover:bg-white/10 transition-colors"
+                  >
+                    Sign in
+                  </Link>
+                </div>
+              )}
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[#131318] px-3 py-2 font-mono text-[12px] text-white/70">
                   <span className="w-2 h-2 rounded-full bg-[#7ee2a8]" />
-                  VITE_CRYPTO_SECURE_ENCRYPTION=true
+                  CRYPTO_SECURE_ENCRYPTION=true (from DB)
                 </span>
                 <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-[#131318] px-3 py-2 font-mono text-[12px] text-white/70">
                   RSA-2048 · AES-256-GCM
@@ -221,7 +233,7 @@ export default function Home() {
                   <p className="mt-2 text-[#7ee2a8]">✔ platform · full-stack</p>
                   <p className="text-[#7ee2a8]">✔ encryption · crypto-secure</p>
                   <p className="text-[#7ee2a8]">✔ repo pattern · mongodb</p>
-                  <p className="text-[#7ee2a8]">✔ keys written to .env</p>
+                  <p className="text-[#7ee2a8]">✔ keys from database (runtime)</p>
                   <p className="mt-4 text-white/35"># request payload (encrypted)</p>
                   <pre className="mt-1 text-[13px] leading-relaxed">
                     <span className="text-[#3b82f6]">{"{"}</span>
@@ -293,8 +305,8 @@ export default function Home() {
               </h2>
               <div className="mx-auto mt-5 h-px w-24 bg-gradient-to-r from-transparent via-[#3b82f6] to-transparent" />
               <p className="mt-4 text-white/60">
-                Toggle <code className="text-blue-300 font-mono text-[0.9em]">CRYPTO_SECURE_ENCRYPTION=true</code> and
-                every request is encrypted end-to-end. Keys auto-generate on first run.
+                Toggles <code className="text-blue-300 font-mono text-[0.9em]">CRYPTO_SECURE_ENCRYPTION=true</code> in the database and
+                every request is encrypted end-to-end. The client auto-loads crypto config from <code className="text-blue-300 font-mono text-[0.9em]">GET /settings/crypto</code> at startup — no rebuild needed when keys change.
               </p>
             </div>
 

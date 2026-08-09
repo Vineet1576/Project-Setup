@@ -8,7 +8,7 @@ A CLI tool that scaffolds a **full-stack project** — pick from **API (Express 
 |---------|------------------------|
 | **Defense-in-depth security** | Rate limiting (per-IP), strict CORS, Helmet headers, payload size limits — not just JWT |
 | **Zero key files on disk** | RSA keypair auto-generated and stored directly in `.env` — no `keys/` directory to leak |
-| **Hybrid encryption, zero config** | RSA+AES-GCM or AES-CBC — toggle with one env var. Keys auto-generate on first run |
+| **Hybrid encryption, zero config** | RSA+AES-GCM or AES-CBC — toggle via the database. Frontend fetches crypto config at runtime |
 | **Secret auto-injection** | Run with `CRYPTO_SECURE_ENCRYPTION=true` and missing keys? The server generates them and writes to `.env` for you |
 | **Dev-safe rate limiting** | Rate limits automatically disable when `NODE_ENV=development` — no Postman friction |
 | **Production-hardened logging** | `combined` format in prod, `dev` format in development — no sensitive data leaked to logs |
@@ -68,7 +68,7 @@ Based on your choice, the CLI adapts the prompts:
 ### Frontend (React + Vite)
 - Login, Register, Email Verification, Forgot/Reset Password
 - Profile management
-- Auto-detects encryption mode (crypto-secure or legacy)
+- Fetches crypto config (CRYPTO_SECURE_ENCRYPTION, SECRET_KEY, ENCRYPTION_IV) from the API at runtime
 - Axios interceptors for transparent encryption
 
 ### Admin Panel (React + Vite)
@@ -76,7 +76,7 @@ Based on your choice, the CLI adapts the prompts:
 - User management (list, add, edit, delete)
 - Role management (list, add, edit, delete)
 - Sidebar navigation, DataTable, Modal components
-- Auto-detects encryption mode
+- Fetches crypto config from the API at runtime
 
 ## Security Architecture
 
@@ -103,7 +103,7 @@ Limits apply per-IP. 100 users from 100 different IPs can each hit login 15 time
 - RSA keypair is **never stored in a file on disk**
 - Auto-generated on first run and written directly to `.env`
 - Both private and public keys live exclusively in environment variables
-- Legacy mode uses a shared `SECRET_KEY` and `ENCRYPTION_IV` from `.env`
+- Legacy mode uses a shared `SECRET_KEY` and `ENCRYPTION_IV` fetched from the API (`/settings/crypto`) at runtime
 
 ### Logging
 - **Production**: `combined` format (Apache-standard, no sensitive data)
@@ -114,9 +114,9 @@ Limits apply per-IP. 100 users from 100 different IPs can each hit login 15 time
 | Mode | Algorithm | Key storage | Auto-generate |
 |------|-----------|-------------|---------------|
 | **crypto-secure** (`CRYPTO_SECURE_ENCRYPTION=true`) | RSA-2048 OAEP + AES-256-GCM | `.env` vars | ✅ First run writes keys to `.env` |
-| **Legacy** (`CRYPTO_SECURE_ENCRYPTION=false`) | AES-CBC with shared secret | `.env` vars | ❌ Must set manually |
+| **Legacy** (`CRYPTO_SECURE_ENCRYPTION=false`) | AES-CBC with shared secret | Database settings (`config` collection) | ❌ Must set in the admin settings UI |
 
-When crypto-secure is enabled, the server automatically generates RSA keys on first run and exposes `/.well-known/encryption-key`. Frontend/admin clients auto-detect the mode and handle encryption transparently via Axios interceptors.
+When crypto-secure is enabled, the server automatically generates RSA keys on first run and exposes `/.well-known/encryption-key`. Frontend/admin clients fetch the crypto config from `GET /settings/crypto` at runtime and handle encryption transparently via Axios interceptors.
 
 ## Architecture — Repository Pattern
 
@@ -176,7 +176,7 @@ sequenceDiagram
 | `userService.js` | `userRepository.js` | MongoDB |
 | `roleService.js` | `roleRepository.js` | MongoDB |
 | `categoryService.js` | `categoryRepository.js` | MongoDB |
-| `contactUsService.js` | `contactUsRepository.js` | MongoDB |
+| `feedbackService.js` | `feedbackRepository.js` | MongoDB |
 | `contentManagementService.js` | `contentManagementRepository.js` | MongoDB |
 | `featureService.js` | `featureRepository.js` | MongoDB |
 | `planService.js` | `planRepository.js` | MongoDB |

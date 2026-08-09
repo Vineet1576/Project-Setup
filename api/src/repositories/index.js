@@ -1,7 +1,7 @@
 ﻿const roleRepo = require("./roleRepository");
 const userRepo = require("./userRepository");
 const categoryRepo = require("./categoryRepository");
-const contactUsRepo = require("./contactUsRepository");
+const feedbackRepo = require("./feedbackRepository");
 const contentManagementRepo = require("./contentManagementRepository");
 const featureRepo = require("./featureRepository");
 const planRepo = require("./planRepository");
@@ -15,7 +15,7 @@ module.exports = {
   roleRepo,
   userRepo,
   categoryRepo,
-  contactUsRepo,
+  feedbackRepo,
   contentManagementRepo,
   featureRepo,
   planRepo,

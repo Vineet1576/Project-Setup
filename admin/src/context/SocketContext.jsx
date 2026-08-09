@@ -5,7 +5,7 @@ import { useNotificationManager } from '../components/common/NotificationManager
 
 const SocketContext = createContext(null);
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 export function SocketProvider({ children }) {
   const { auth } = useAuth();

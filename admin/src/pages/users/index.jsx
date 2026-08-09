@@ -7,6 +7,7 @@ import PageHeader from '../../components/common/PageHeader';
 import TableFilters from '../../components/common/TableFilters';
 import useDebouncedValue from '../../components/common/useDebouncedValue';
 import { useConfirm } from '../../context/ConfirmContext';
+import { useRecord } from '../../context/RecordContext';
 import { useToast } from '../../components/common/Toast';
 import { capitalizeName } from '../../utils/name';
 import { fmtDateTime } from '../../utils/date';
@@ -17,6 +18,7 @@ import Pagination from '../../components/common/Pagination';
 export default function UserList() {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const { setActiveId } = useRecord();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState('');
@@ -63,8 +65,8 @@ export default function UserList() {
 
   useEffect(() => { setPage(1); }, [debouncedSearch, status, approvalStatus]);
 
-  const goView = (user) => navigate(`/users/view/${user.id || user._id}`, { state: { record: user } });
-  const goEdit = (user) => navigate(`/users/edit/${user.id || user._id}`, { state: { record: user } });
+  const goView = (user) => { setActiveId(user.id || user._id); navigate('/users/view', { state: { record: user } }); };
+  const goEdit = (user) => { setActiveId(user.id || user._id); navigate('/users/edit', { state: { record: user } }); };
 
   const handleDelete = async (user) => {
     const ok = await confirm({
@@ -118,6 +120,8 @@ export default function UserList() {
     { key: 'firstName', label: 'Name', render: (_, row) => capitalizeName(`${row.firstName || ''} ${row.lastName || ''}`.trim()) || '-' },
     { key: 'email', label: 'Email' },
     { key: 'mobileNo', label: 'Mobile' },
+    { key: 'city', label: 'City', render: (v) => capitalizeName(v) || '-' },
+    { key: 'country', label: 'Country', render: (v) => capitalizeName(v) || '-' },
     { key: 'status', label: 'Status', render: (v, row) => {
       const busy = togglingId === (row.id || row._id);
       return (

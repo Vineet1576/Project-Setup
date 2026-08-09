@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FaEnvelope, FaGithub, FaTwitter, FaLinkedinIn, FaFacebookF, FaInstagram, FaYoutube } from 'react-icons/fa';
+import { FaEnvelope, FaGithub, FaTwitter, FaLinkedinIn, FaFacebookF, FaInstagram, FaYoutube, FaHeart, FaStar } from 'react-icons/fa';
 import InfoLayout from '../../components/common/InfoLayout';
 import ContactTopicDropdown from '../../components/common/ContactTopicDropdown';
 import { contentApi } from '../../methods/api/content';
@@ -9,11 +9,20 @@ import { useToast } from '../../components/common/Toast';
 
 const topics = ['Account help', 'Security & encryption', 'Bug report', 'Feature request', 'Something else'];
 
-export default function ContactUs() {
+const successMessages = [
+  "Your feedback helps us build something better!",
+  "We appreciate you taking the time to share your thoughts.",
+  "Every piece of feedback makes a difference.",
+  "Thanks for helping us improve!",
+  "Your voice matters to us."
+];
+
+export default function Feedback() {
   const [form, setForm] = useState({ name: '', email: '', topic: topics[0], message: '' });
   const [site, setSite] = useState(null);
-  const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showThankYou, setShowThankYou] = useState(false);
+  const [thankYouIndex, setThankYouIndex] = useState(0);
   const toast = useToast();
 
   useEffect(() => {
@@ -71,11 +80,17 @@ export default function ContactUs() {
         topic: form.topic,
         message: form.message,
       });
-      setSent(true);
-      toast.showToast('Message sent successfully!', 'success');
+      setThankYouIndex(Math.floor(Math.random() * successMessages.length));
+      setShowThankYou(true);
+      toast.showToast('Feedback sent successfully!', 'success');
     } catch (err) {
-      toast.showToast(err.response?.data?.error?.message || err.response?.data?.message || 'Failed to send message. Please try again.', 'error');
+      toast.showToast(err.response?.data?.error?.message || err.response?.data?.message || 'Failed to send feedback. Please try again.', 'error');
     } finally { setLoading(false); }
+  };
+
+  const closeThankYou = () => {
+    setShowThankYou(false);
+    setForm({ name: '', email: '', topic: topics[0], message: '' });
   };
 
   const inputClass =
@@ -98,15 +113,15 @@ export default function ContactUs() {
                   <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
                 </svg>
                 Feedback
-            </span>
-            <h1 className="mt-4 text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
-              We'd love to hear from you
-            </h1>
-            <p className="mt-4 text-white/60 leading-relaxed">
-              Questions, feedback or a bug to report — send a message and we'll
-              get back to you as soon as we can.
-            </p>
-          </div>
+              </span>
+              <h1 className="mt-4 text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
+                We'd love to hear from you
+              </h1>
+              <p className="mt-4 text-white/60 leading-relaxed">
+                Questions, feedback or a bug to report — send a message and we'll
+                get back to you as soon as we can.
+              </p>
+            </div>
         </div>
       </header>
 
@@ -124,13 +139,13 @@ export default function ContactUs() {
                     {c.icon}
                   </span>
                    <div className="min-w-0">
-                     <p className="text-[12px] font-semibold uppercase tracking-widest text-white/40">{c.label}</p>
-                     {c.href ? (
-                       <a href={c.href} target="_blank" rel="noopener noreferrer" className="block truncate text-[14px] font-medium text-blue-300 hover:text-blue-200 transition-colors">{c.value}</a>
-                     ) : (
-                       <p className="truncate text-[14px] font-medium text-white/85">{c.value}</p>
-                     )}
-                   </div>
+                    <p className="text-[12px] font-semibold uppercase tracking-widest text-white/40">{c.label}</p>
+                    {c.href ? (
+                      <a href={c.href} target="_blank" rel="noopener noreferrer" className="block truncate text-[14px] font-medium text-blue-300 hover:text-blue-200 transition-colors">{c.value}</a>
+                    ) : (
+                      <p className="truncate text-[14px] font-medium text-white/85">{c.value}</p>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -144,28 +159,52 @@ export default function ContactUs() {
           </div>
 
           <div className="lg:col-span-3">
-            {sent ? (
-              <div className="rounded-2xl border border-[#7ee2a8]/30 bg-[#0d1a13] p-10 text-center">
-                <span className="inline-flex items-center justify-center w-12 h-12 rounded-full text-[#7ee2a8] bg-[#7ee2a8]/10">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 6 9 17l-5-5" />
-                  </svg>
-                </span>
-                <h2 className="mt-4 text-lg font-semibold text-white">Message sent!</h2>
-                <p className="mt-2 text-[14px] text-white/60">
-                  Thanks, {form.name.split(' ')[0]}. We've received your message
-                  and will reply to <span className="text-white/85">{form.email}</span> shortly.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSent(false);
-                    setForm({ name: '', email: '', topic: topics[0], message: '' });
-                  }}
-                  className="mt-6 inline-flex items-center justify-center h-11 rounded-xl px-7 font-semibold text-white bg-gradient-to-r from-[#60a5fa] to-[#3b82f6] hover:opacity-90 transition-opacity"
+            {showThankYou ? (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={closeThankYou}>
+                <div 
+                  className="relative w-full max-w-md rounded-3xl border border-white/10 bg-gradient-to-b from-[#14141c] to-[#101018] p-8 sm:p-10 text-center shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  Send another message
-                </button>
+                  <div className="relative mb-6">
+                    <div className="absolute inset-0 bg-gradient-to-r from-[#60a5fa]/30 to-[#3b82f6]/30 rounded-full blur-2xl" style={{animation: 'pulse 2s infinite'}} />
+                    <div className="relative inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-[#60a5fa]/20 to-[#3b82f6]/20 border border-[#3b82f6]/30">
+                      <svg className="w-10 h-10 text-[#60a5fa]" style={{animation: 'bounce 1s infinite'}} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <FaStar className="w-5 h-5 text-[#3b82f6]" />
+                    <h2 className="text-2xl sm:text-3xl font-bold text-white">Thank You!</h2>
+                    <FaStar className="w-5 h-5 text-[#60a5fa]" />
+                  </div>
+                  
+                  <p className="text-lg text-white/80 mb-2 font-medium">
+                    {form.name.split(' ')[0]}, your feedback means the world to us! 💙
+                  </p>
+                  
+                  <div className="mt-4 p-4 rounded-xl bg-white/5 border border-white/10">
+                    <FaHeart className="w-5 h-5 text-[#ef4444] mx-auto mb-2" />
+                    <p className="text-white/70 italic text-base leading-relaxed">
+                      "{successMessages[thankYouIndex]}"
+                    </p>
+                  </div>
+
+                  <div className="mt-6 space-y-3 text-sm text-white/50">
+                    <p>We've sent a confirmation email to <span className="text-white/90 font-medium">{form.email}</span></p>
+                    <p>Our team will review your feedback and get back to you if needed.</p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={closeThankYou}
+                    className="mt-8 w-full inline-flex items-center justify-center gap-2 h-12 rounded-xl font-semibold text-white bg-gradient-to-r from-[#60a5fa] to-[#3b82f6] shadow-[0_12px_32px_-12px_rgba(59,130,246,0.8)] hover:opacity-90 hover:shadow-[0_16px_40px_-12px_rgba(59,130,246,1)] transition-all"
+                  >
+                    <FaStar className="w-5 h-5" />
+                    <span>Back to Feedback</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#14141c] to-[#101018] p-6 sm:p-8">
@@ -222,7 +261,7 @@ export default function ContactUs() {
                   disabled={loading}
                   className="inline-flex items-center justify-center h-12 w-full rounded-xl font-semibold text-white bg-gradient-to-r from-[#60a5fa] to-[#3b82f6] shadow-[0_12px_32px_-12px_rgba(59,130,246,0.8)] hover:opacity-90 transition-opacity disabled:opacity-60"
                 >
-                  {loading ? 'Sending...' : 'Send message'}
+                  {loading ? 'Sending...' : 'Send feedback'}
                 </button>
                 </form>
               </div>

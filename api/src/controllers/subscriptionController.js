@@ -170,10 +170,21 @@ module.exports = {
       }
 
       const valid_date = new Date();
+      const intervalCount = Number(interval_count) || 1;
       if (planDetail.numberOfDays) {
         valid_date.setDate(valid_date.getDate() + planDetail.numberOfDays);
       } else {
-        valid_date.setMonth(valid_date.getMonth() + 1);
+        switch (interval_type) {
+          case "year":
+            valid_date.setFullYear(valid_date.getFullYear() + intervalCount);
+            break;
+          case "week":
+            valid_date.setDate(valid_date.getDate() + intervalCount * 7);
+            break;
+          case "month":
+          default:
+            valid_date.setMonth(valid_date.getMonth() + intervalCount);
+        }
       }
 
       const existingSub = await subscriptionRepo.findOne({

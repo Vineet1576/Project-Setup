@@ -18,6 +18,8 @@ module.exports = [
   '/roles/frontend-list',
   '/faqs/list',
   '/settings/public',
+  '/settings/crypto',
+  '/.well-known/encryption-key',
   '/subscriptions/webhook',
   '/',
 ];

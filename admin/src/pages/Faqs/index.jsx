@@ -10,10 +10,12 @@ import StatusToggle from '../../components/common/StatusToggle';
 import { fmtDateTime } from '../../utils/date';
 import Pagination from '../../components/common/Pagination';
 import { useConfirm } from '../../context/ConfirmContext';
+import { useRecord } from '../../context/RecordContext';
 
 export default function Faqs() {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const { setActiveId } = useRecord();
   const [faqs, setFaqs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState('');
@@ -54,8 +56,8 @@ export default function Faqs() {
     return () => { mounted = false; };
   }, []);
 
-  const goView = (faq) => navigate(`/faqs/view/${faq.id || faq._id}`, { state: { record: faq } });
-  const goEdit = (faq) => navigate(`/faqs/edit/${faq.id || faq._id}`, { state: { record: faq } });
+  const goView = (faq) => { setActiveId(faq.id || faq._id); navigate('/faqs/view', { state: { record: faq } }); };
+  const goEdit = (faq) => { setActiveId(faq.id || faq._id); navigate('/faqs/edit', { state: { record: faq } }); };
 
   const handleDelete = async (faq) => {
     const ok = await confirm({

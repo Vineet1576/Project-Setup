@@ -171,10 +171,18 @@ export default function Profile() {
               </div>
               <Field label="Email" value={form.email} disabled />
               <div style={{ display: 'flex', gap: 10, marginTop: 'auto', paddingTop: 16 }}>
-                <button type="submit" disabled={saving || uploading} className="button-primary" style={{ minWidth: 130 }}>
-                  {saving ? 'Saving...' : 'Save'}
+                <button type="submit" disabled={saving || uploading} className="button-primary" style={{ minWidth: 130, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  {saving ? 'Saving...' : (
+                    <>
+                      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                      Save
+                    </>
+                  )}
                 </button>
-                <button type="button" onClick={cancelEdit} className="button-secondary">Cancel</button>
+                <button type="button" onClick={cancelEdit} className="button-secondary" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+                  Cancel
+                </button>
               </div>
             </form>
           ) : (

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 const client = axios.create({
   baseURL: API_BASE,
@@ -12,7 +12,7 @@ let initPromise = null;
 
 function getToken() {
   try {
-    const auth = JSON.parse(localStorage.getItem('admin_auth') || '{}');
+    const auth = JSON.parse(sessionStorage.getItem('admin_auth') || '{}');
     return auth.token || null;
   } catch { return null; }
 }
@@ -31,7 +31,7 @@ client.interceptors.request.use(async (config) => {
 
   await ensureEncryption();
 
-  const { getEncryptionHeaders, encryptRequest } = await import('../../models/encryptDecrypt');
+  const { getEncryptionHeaders, encryptRequest, encryptParams } = await import('../../models/encryptDecrypt');
 
   const headers = getEncryptionHeaders();
   if (headers['x-encryption-key']) {
@@ -43,8 +43,7 @@ client.interceptors.request.use(async (config) => {
   }
 
   if (config.params && encryptionReady && !config.data) {
-    const encrypted = await encryptRequest(config.params);
-    config.params = { data: JSON.stringify(encrypted) };
+    config.params = await encryptParams(config.params);
   }
   return config;
 });

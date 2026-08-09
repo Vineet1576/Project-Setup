@@ -65,7 +65,7 @@ const fallbackFaqs = [
     icon: TOPIC_ICONS[3],
     items: [
       { q: 'I never received the verification email.', a: 'Check your spam or promotions folder first. Make sure the email address is correct, then request a new link. Add our domain to your contacts so future mail lands in your inbox.' },
-      { q: 'The page shows an error after signing in.', a: 'Hard-refresh the page (Ctrl+Shift+R) and try again. If the issue persists, contact us from the Feedback page and include the exact error message you saw.' },
+      { q: 'The page shows an error after signing in.', a: 'Hard-refresh the page (Ctrl+Shift+R) and try again. If the issue persists, send feedback from the Feedback page and include the exact error message you saw.' },
       { q: 'My token expired while I was working.', a: 'Security tokens are intentionally short-lived. Sign back in to continue where you left off — your account data is untouched.' },
     ],
   },

@@ -2,10 +2,10 @@
 const { serialize } = require('./repositoryUtils');
 
 const Setting = db.settings;
-const fields = ['key', 'site', 'email', 'stripe', 'updatedBy'];
+const fields = ['key', 'site', 'email', 'stripe', 'config', 'updatedBy'];
 
 const serializeSettings = (doc) => {
-  const base = serialize(doc, fields, { preserveObjects: ['site', 'email', 'stripe'] });
+  const base = serialize(doc, fields, { preserveObjects: ['site', 'email', 'stripe', 'config'] });
   return base;
 };
 

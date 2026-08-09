@@ -67,3 +67,10 @@ exports.statusUpdate = async ({ status, title, id }) => {
   const existed = await findContentOrThrow({ title, id });
   await contentManagementRepo.updateOne(existed.id, { status });
 };
+
+exports.deleteContent = async ({ id }) => {
+  if (!id) throw "id is required";
+  const existed = await findContentOrThrow({ id });
+  const result = await contentManagementRepo.softDelete(existed.id);
+  if (!result.modifiedCount) throw constants.CONTENT_MANAGEMENT.NOT_FOUND;
+};
