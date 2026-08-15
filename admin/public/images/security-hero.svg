@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 700" width="900" height="700">
+  <defs>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.45"/>
+      <stop offset="55%" stop-color="#3b82f6" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="shieldGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.28"/>
+      <stop offset="70%" stop-color="#3b82f6" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shieldFill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#171d33"/>
+      <stop offset="100%" stop-color="#0c0f1d"/>
+    </linearGradient>
+    <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="chipGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#1d4ed8" stop-opacity="0.9"/>
+    </linearGradient>
+    <linearGradient id="floorGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#60a5fa" stop-opacity="0.18"/>
+    </linearGradient>
+    <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse">
+      <path d="M44 0H0V44" fill="none" stroke="#3b82f6" stroke-opacity="0.06" stroke-width="1"/>
+    </pattern>
+    <filter id="shadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#3b82f6" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect width="900" height="700" fill="url(#grid)"/>
+  <rect y="560" width="900" height="140" fill="url(#floorGrad)"/>
+
+  <circle cx="450" cy="380" r="310" fill="url(#glow)"/>
+
+  <circle cx="450" cy="380" r="240" fill="none" stroke="#60a5fa" stroke-opacity="0.16" stroke-width="2" stroke-dasharray="6 10"/>
+  <circle cx="450" cy="380" r="198" fill="none" stroke="#3b82f6" stroke-opacity="0.28" stroke-width="1.5" stroke-dasharray="3 8"/>
+
+  <g stroke="#60a5fa" stroke-width="26" stroke-linecap="round" fill="none" opacity="0.95">
+    <path d="M168 300 L128 300 L128 255"/>
+    <path d="M732 300 L772 300 L772 255"/>
+  </g>
+  <g stroke="#3b82f6" stroke-width="26" stroke-linecap="round" fill="none" opacity="0.95">
+    <path d="M168 452 L128 452 L128 497"/>
+    <path d="M732 452 L772 452 L772 497"/>
+  </g>
+
+  <g fill="#60a5fa">
+    <circle cx="120" cy="390" r="9"/>
+    <circle cx="160" cy="330" r="6"/>
+    <circle cx="780" cy="390" r="9"/>
+    <circle cx="740" cy="330" r="6"/>
+    <circle cx="450" cy="96" r="8"/>
+    <circle cx="330" cy="128" r="5"/>
+    <circle cx="570" cy="128" r="5"/>
+    <circle cx="230" cy="185" r="5" opacity="0.7"/>
+    <circle cx="670" cy="185" r="5" opacity="0.7"/>
+    <circle cx="450" cy="652" r="6" opacity="0.7"/>
+    <circle cx="300" cy="606" r="5" opacity="0.6"/>
+    <circle cx="600" cy="606" r="5" opacity="0.6"/>
+  </g>
+
+  <g fill="#3b82f6" opacity="0.85">
+    <rect x="150" y="150" width="14" height="14" rx="2"/>
+    <rect x="736" y="150" width="14" height="14" rx="2"/>
+    <rect x="180" y="120" width="10" height="10" rx="2"/>
+    <rect x="710" y="120" width="10" height="10" rx="2"/>
+  </g>
+
+  <circle cx="450" cy="382" r="200" fill="url(#shieldGlow)"/>
+
+  <path d="M450 120 L650 192 L650 384 C650 522 550 612 450 648 C350 612 250 522 250 384 L250 192 Z" fill="url(#shieldFill)" stroke="url(#ringGrad)" stroke-width="7" filter="url(#shadow)"/>
+  <path d="M450 138 L630 202 L630 382 C630 510 545 592 450 626 C355 592 270 510 270 382 L270 202 Z" fill="none" stroke="#3b82f6" stroke-opacity="0.18" stroke-width="2"/>
+
+  <path d="M450 292 a40 40 0 1 1 -0.01 0" fill="none" stroke="#60a5fa" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="450" cy="362" r="30" fill="url(#chipGrad)"/>
+  <rect x="428" y="380" width="44" height="38" rx="7" fill="url(#chipGrad)"/>
+  <circle cx="450" cy="362" r="13" fill="#0b0b10"/>
+  <rect x="438" y="390" width="24" height="16" rx="3" fill="#0b0b10"/>
+
+  <g font-family="monospace">
+    <rect x="316" y="466" width="268" height="46" rx="9" fill="#60a5fa" opacity="0.12"/>
+    <text x="336" y="497" font-size="27" fill="#60a5fa" font-weight="700">AES-256-GCM</text>
+    <rect x="392" y="516" width="116" height="38" rx="9" fill="#3b82f6" opacity="0.12"/>
+    <text x="410" y="542" font-size="21" fill="#3b82f6" font-weight="700">RSA-2048 OAEP</text>
+    <text x="368" y="590" font-size="20" fill="#ffffff" opacity="0.5">encrypted payload</text>
+  </g>
+</svg>
