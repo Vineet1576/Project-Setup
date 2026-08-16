@@ -25,6 +25,7 @@ export default function MyFeedbackDetail() {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
+    console.log(id, "njkvnhvjkdfjkvnnjkdfvn")
     feedbackApi
       .detail({ id })
       .then((res) => {

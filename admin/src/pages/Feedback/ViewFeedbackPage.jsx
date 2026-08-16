@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import FormPageLayout from '../../components/common/FormPageLayout';
 import useEntity from '../../components/common/useEntity';
 import SkeletonLoader from '../../components/common/SkeletonLoader';
-import { contactUsApi } from '../../methods/api/contactUs';
+import { feedbackApi } from '../../methods/api/feedback';
 import { capitalizeName } from '../../utils/name';
 import { fmtDateTime } from '../../utils/date';
 import { useToast } from '../../components/common/Toast';
@@ -34,7 +34,7 @@ const initials = (name = '') => {
 
 export default function ViewFeedbackPage() {
   const navigate = useNavigate();
-  const { record, loading, notFound, refetch, setRecord } = useEntity(contactUsApi.getById);
+  const { record, loading, notFound, refetch, setRecord } = useEntity(feedbackApi.getById);
   const [reply, setReply] = useState('');
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
@@ -62,7 +62,7 @@ export default function ViewFeedbackPage() {
     setError('');
     setSending(true);
     try {
-      const res = await contactUsApi.reply({ id, message: trimmed });
+      const res = await feedbackApi.reply({ id, message: trimmed });
       const result = res.data?.data || res.data || {};
       showToast('Reply sent to the user', 'success');
       setReply('');

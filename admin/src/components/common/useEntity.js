@@ -14,7 +14,7 @@ export default function useEntity(getById) {
     if (!getById) return;
     try {
       const res = await getById({ id });
-      const data = res.data?.data || res.data;
+      const data = res.data?.detail || res.data?.data || res.data;
       if (data && typeof data === 'object') {
         setRecord(data);
         setNotFound(false);
@@ -35,7 +35,7 @@ export default function useEntity(getById) {
     (async () => {
       try {
         const res = await getById({ id });
-        const data = res.data?.data || res.data;
+        const data = res.data?.detail || res.data?.data || res.data;
         if (active) {
           if (data && typeof data === 'object') {
             setRecord(data);

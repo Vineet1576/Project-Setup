@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { contactUsApi } from '../../methods/api/contactUs';
+import { feedbackApi } from '../../methods/api/feedback';
 import DataTable from '../../components/common/DataTable';
 import PageHeader from '../../components/common/PageHeader';
 import TableFilters from '../../components/common/TableFilters';
@@ -38,7 +38,7 @@ export default function Feedback() {
   const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await contactUsApi.list({ page, count: pageSize, search: debouncedSearch || undefined, status: status || undefined, topic: topic || undefined });
+      const res = await feedbackApi.list({ page, count: pageSize, search: debouncedSearch || undefined, status: status || undefined, topic: topic || undefined });
       setItems(res.data?.data || res.data?.docs || []);
       setTotal(res.data?.total || 0);
     } catch {
@@ -71,7 +71,7 @@ export default function Feedback() {
     });
     if (!ok) return;
     try {
-      await contactUsApi.delete({ id: item._id || item.id });
+      await feedbackApi.delete({ id: item._id || item.id });
       showToast('Message deleted', 'success');
       fetchItems();
     } catch (err) {
@@ -85,7 +85,7 @@ export default function Feedback() {
     const next = isRead ? 'unread' : 'read';
     setTogglingId(id);
     try {
-      await contactUsApi.changeStatus({ id, status: next });
+      await feedbackApi.changeStatus({ id, status: next });
       showToast(`Message marked as ${next}`, 'success');
       fetchItems();
     } catch (err) {
