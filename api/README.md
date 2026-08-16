@@ -1,6 +1,6 @@
-# <%= projectName %>
+# <%= projectName %> — API
 
-Node.js/Express REST API with MongoDB, JWT auth, encryption, and **Repository Pattern** for database abstraction.
+Node.js/Express REST API for **<%= projectName %>** with MongoDB, JWT auth, hybrid encryption, Socket.IO real-time events, Stripe subscriptions, invoice PDFs, and the **Repository Pattern** for database abstraction.
 
 ## Quick Start
 
@@ -10,14 +10,16 @@ npm install
 npm run dev
 ```
 
+The server runs on the port defined in `.env` (`PORT`, default `3000`) and connects to MongoDB using `MONGODB_URI` (or the individual `DB_*` variables).
+
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start dev server with nodemon |
-| `npm start` | Start production server |
-| `npm run lint` | Run ESLint |
-| `npm run format` | Run Prettier |
+| `npm run dev` | Start the API with nodemon (auto-reload) |
+| `npm start` | Start the API in production |
+
+> `eslint.config.js` and `.prettierrc` are included — run your editor/CI linter of choice.
 
 ## PM2 Deployment
 
@@ -26,6 +28,59 @@ pm2 start ecosystem.config.js
 pm2 save
 pm2 startup
 ```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `NODE_ENV` | `development` / `production` (disables rate limiting in dev) |
+| `PROJECT_NAME` | Display name of the project |
+| `PORT` | HTTP port (default `3000`) |
+| `MONGODB_URI` | Full Mongo connection string — overrides `DB_*` when set |
+| `DB_USER` / `DB_PASSWORD` / `HOST` / `DB_PORT` / `DB_NAME` | MongoDB connection parts (fallback when `MONGODB_URI` is unset) |
+| `JWT_SECRET` | Secret used to sign JWTs |
+| `JWT_EXPIRES_IN` | Token lifetime (default `7d`) |
+| `CRYPTO_SECURE_ENCRYPTION` | `true` = crypto-secure (ECDH/RSA + AES-GCM), `false` = legacy AES-CBC |
+| `CRYPTO_SECURE_PRIVATE_KEY` / `CRYPTO_SECURE_PUBLIC_KEY` | RSA/ECDH keypair (auto-generated on first run when crypto-secure is on) |
+| `SECRET_KEY` / `ENCRYPTION_IV` | Legacy AES-CBC keys (used when `CRYPTO_SECURE_ENCRYPTION=false`) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Nodemailer SMTP config |
+| `EMAIL_FROM` / `ADMINEMAIL` | Email from/admin addresses |
+| `FRONT_WEB_URL` / `FRONTEND_URL` / `BACK_WEB_URL` | URLs used inside emails and links |
+| `RUN_SEED` | `true` seeds default roles + admin user on startup |
+| `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Seeded admin credentials |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe keys for subscriptions |
+| `CORS_ORIGIN` | Allowed origins (comma-separated). If unset, cross-origin requests are denied |
+
+## Encryption Modes
+
+| Mode | Algorithm | Key source |
+|------|-----------|-----------|
+| **crypto-secure** (`CRYPTO_SECURE_ENCRYPTION=true`) | ECDH P-256 + AES-256-GCM (RSA-2048 OAEP fallback) | Auto-generated keys written to `.env` on first run |
+| **Legacy** (`CRYPTO_SECURE_ENCRYPTION=false`) | AES-CBC (node-forge) | `SECRET_KEY` + `ENCRYPTION_IV` |
+
+The server exposes:
+- `GET /.well-known/encryption-key` — public key for crypto-secure clients
+- `GET /settings/crypto` — crypto mode + keys fetched by the frontend/admin at runtime
+
+## API Response Format
+
+Every endpoint returns one normalized envelope:
+
+```json
+// success — single resource
+{ "success": true, "code": 200, "message": "…", "data": { } }
+
+// success — list
+{ "success": true, "code": 200, "message": "…", "data": { "list": [], "total": 0, "page": 1, "count": 10 } }
+
+// success — void / mutation
+{ "success": true, "code": 200, "message": "…", "data": null }
+
+// error
+{ "success": false, "code": 400, "message": "…", "error": { "code": 400, "message": "…" }, "data": null }
+```
+
+When encryption is enabled, the `data` value is encrypted and clients decrypt it transparently via the axios interceptors.
 
 ---
 
@@ -40,45 +95,11 @@ All database logic is isolated behind a **repository layer**. Services never tou
 
 ### Architecture Overview
 
-```mermaid
-graph TB
-    Client[Client] -->|HTTP| MW[Middleware]
-    MW -->|Auth / Decrypt| Ctrl[Controller]
-    Ctrl -->|Call service| Svc[Service]
-    Svc -->|Call repository| Repo[Repository]
-    Repo -->|Query| DB[(MongoDB)]
-    DB -->|Document| Repo
-    Repo -->|Plain object| Svc
-    Svc -->|Result| Ctrl
-    Ctrl -->|JSON| Client
-```
+<img src="docs/diagrams/architecture.svg" alt="Architecture Overview">
 
 ### Request Flow
 
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant MW as Middleware
-    participant Ctrl as Controller
-    participant Svc as Service
-    participant Repo as Repository
-    participant DB as MongoDB
-
-    C->>MW: HTTP Request
-    MW->>MW: Rate limit, CORS, Helmet
-    MW->>MW: Decrypt body (optional)
-    MW->>MW: JWT auth verify
-    MW->>Ctrl: req.identity attached
-    Ctrl->>Svc: Call service method
-    Svc->>Svc: Validate business rules
-    Svc->>Repo: Call repository method
-    Repo->>DB: Mongoose query
-    DB-->>Repo: Raw document
-    Repo->>Repo: Serialize to plain object
-    Repo-->>Svc: { id, name, ... }
-    Svc-->>Ctrl: Result
-    Ctrl-->>C: JSON response
-```
+<img src="docs/diagrams/request-flow.svg" alt="Request Flow">
 
 ### Services & Repositories Map
 
@@ -100,13 +121,6 @@ sequenceDiagram
 The repository pattern makes polyglot persistence additive, not invasive.
 
 #### Scenario: Add PostgreSQL for Orders
-
-```mermaid
-graph LR
-    S[Service Layer] --> R[Repository Layer]
-    R --> M[(MongoDB<br/>Users, Roles, Plans)]
-    R --> P[(PostgreSQL<br/>Orders, Products)]
-```
 
 1. Create `models/postgres/Order.js` — Sequelize model
 2. Create `repositories/orderRepository.js` — wraps Sequelize queries
@@ -142,7 +156,7 @@ All 12 services that call `userRepo.findByEmail()` continue working unchanged.
 
 ```
 src/
-├── app.js                             # Express app setup, DB init
+├── app.js                             # Express app setup, DB init, Socket.IO
 ├── config/
 │   └── db.config.js                   # MongoDB URI builder
 ├── controllers/                       # Route handlers (thin wrappers)
@@ -159,7 +173,7 @@ src/
 │   ├── uploadController.js
 │   └── ...
 ├── Emails/                            # Nodemailer SMTP + templates
-├── middleware/                         # Auth, decrypt, error handler
+├── middleware/                        # Auth, decrypt, error handler
 ├── models/                            # Mongoose schemas
 │   ├── index.js                       # Model registry
 │   ├── User.js
@@ -169,16 +183,7 @@ src/
 ├── repositories/                      # ★ DATABASE LAYER ★
 │   ├── repositoryUtils.js             # Shared serialize, paginate, helpers
 │   ├── index.js                       # Barrel export
-│   ├── userRepository.js
-│   ├── roleRepository.js
-│   ├── categoryRepository.js
-│   ├── feedbackRepository.js
-│   ├── contentManagementRepository.js
-│   ├── featureRepository.js
-│   ├── planRepository.js
-│   ├── subscriptionRepository.js
-│   ├── transactionRepository.js
-│   └── notificationRepository.js
+│   └── ... (one per domain)
 ├── routes/
 │   ├── index.js                       # Route aggregator
 │   ├── userRoutes.js
@@ -187,21 +192,14 @@ src/
 ├── services/                          # ★ BUSINESS LOGIC ★ (calls repos only)
 │   ├── userService.js
 │   ├── roleService.js
-│   ├── categoryService.js
-│   ├── feedbackService.js
-│   ├── contentManagementService.js
-│   ├── featureService.js
-│   ├── planService.js
-│   ├── subscriptionService.js
-│   ├── transactionService.js
-│   ├── notificationService.js
-│   ├── uploadService.js
-│   └── socket.js
+│   ├── ... (one per domain)
+│   ├── socket.js                      # Socket.IO events
+│   └── subscriptionCron.js            # Scheduled subscription jobs
 ├── utils/
 │   ├── constants.js
 │   ├── helpers.js
 │   ├── paginate.js
-│   ├── response.js
+│   ├── response.js                    # Normalized response helper
 │   └── invoices.js
 ├── validations/                       # Joi schemas
 └── views/                             # Static HTML
@@ -212,7 +210,7 @@ src/
 ## User API
 
 All endpoints are prefixed with `/users`.  
-Requests are decrypted by middleware — send payload inside `{ data: "<encrypted-hex>" }`.
+Requests are decrypted by middleware — send payload inside `{ data: "<encrypted-hex>" }` when encryption is enabled.
 
 ### Auth
 
@@ -302,7 +300,7 @@ Requests are decrypted by middleware — send payload inside `{ data: "<encrypte
 | PUT | `/users/change-approval-status` | Yes | Approve / reject user |
 | DELETE | `/users/delete` | Yes | Soft-delete user |
 
-**GET `/users/list`**  
+**GET `/users/list`**
 
 Query params: `page`, `limit`, `search`, `startDate`, `endDate`, `role`, `status`, `approvalStatus`, `isVerified`
 
@@ -380,6 +378,124 @@ Query params: `page`, `limit`, `search`, `startDate`, `endDate`
 
 ---
 
+## Category API
+
+All endpoints are prefixed with `/category`.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/category/add` | Yes | Create a category |
+| GET | `/category/detail` | Yes | Get category by ID |
+| PUT | `/category/update` | Yes | Update category |
+| DELETE | `/category/delete` | Yes | Delete category |
+| GET | `/category/listing` | Yes | List categories (paginated) |
+| PUT | `/category/status/change` | Yes | Activate / deactivate |
+| GET | `/category/sub/listing` | Yes | List sub-categories |
+
+---
+
+## Feedback API
+
+All endpoints are prefixed with `/feedback`.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/feedback/add` | No | Submit feedback / contact form |
+| GET | `/feedback/detail` | Yes | Get feedback by ID |
+| PUT | `/feedback/update` | Yes | Update feedback |
+| DELETE | `/feedback/delete` | Yes | Soft-delete feedback |
+| GET | `/feedback/listing` | Yes | List feedback (paginated, filterable) |
+| PUT | `/feedback/status/change` | Yes | Change status (new/read/resolved) |
+| POST | `/feedback/reply` | Yes | Admin reply to feedback |
+
+**GET `/feedback/listing`**
+
+Query params: `page`, `count`, `search`, `status`, `topic`, `email`
+
+**POST `/feedback/add`**
+
+```json
+{ "firstName": "John", "lastName": "Doe", "email": "john@example.com", "topic": "Bug report", "message": "I found a bug..." }
+```
+
+**POST `/feedback/reply`**
+
+```json
+{ "id": "FEEDBACK_ID", "message": "Thanks for reporting, we're on it!" }
+```
+
+---
+
+## Content Management API
+
+All endpoints are prefixed with `/content-management`.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/content-management/add` | Yes | Create content |
+| GET | `/content-management/detail` | Yes | Get content by ID/slug |
+| PUT | `/content-management/update` | Yes | Update content |
+| GET | `/content-management/listing` | Yes | List content |
+| PUT | `/content-management/status/change` | Yes | Activate / deactivate |
+| DELETE | `/content-management/delete` | Yes | Soft-delete content |
+
+---
+
+## Feature API
+
+All endpoints are prefixed with `/features`.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/features/add` | Yes | Create a feature |
+| PUT | `/features/update` | Yes | Update a feature |
+| PUT | `/features/status/change` | Yes | Activate / deactivate |
+| GET | `/features/list` | Yes | List features |
+| GET | `/features/detail` | Yes | Get feature by ID |
+| DELETE | `/features/delete` | Yes | Delete a feature |
+
+---
+
+## Plan API
+
+All endpoints are prefixed with `/plans`.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/plans/add` | Yes | Create a plan |
+| PUT | `/plans/update` | Yes | Update a plan |
+| PUT | `/plans/status/change` | Yes | Activate / deactivate |
+| GET | `/plans/list` | Yes | List plans |
+| GET | `/plans/detail` | Yes | Get plan by ID |
+| DELETE | `/plans/delete` | Yes | Delete a plan |
+
+---
+
+## Subscription API
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/subscriptions/purchase` | Yes | Create Stripe checkout session |
+| DELETE | `/subscriptions/cancel` | Yes | Cancel subscription |
+| GET | `/subscriptions/detail` | Yes | Get own subscription |
+| GET | `/subscriptions/list` | Yes | List subscriptions |
+| GET | `/subscriptions/customerbalance` | Yes | Retrieve Stripe customer balance |
+| POST | `/subscriptions/webhook` | No | Stripe webhook (raw body, signature verified) |
+
+### Subscription Webhook
+
+Stripe sends `checkout.session.completed` events to `/subscriptions/webhook`. The webhook:
+
+1. Verifies the Stripe signature via `STRIPE_WEBHOOK_SECRET`
+2. Checks idempotency via `stripe_session_id`
+3. Looks up the plan and subscriber (user or organization)
+4. Cancels any existing active subscriptions
+5. Creates/updates the subscription record
+6. Updates the subscriber's `planId` / `subscriptionId`
+7. Fires background tasks: invoice PDF generation, email receipt, notifications
+
+---
+
 ## Notification API
 
 All endpoints are prefixed with `/notifications`. Requires authentication.
@@ -409,17 +525,6 @@ Query params: `page`, `count`, `type`, `read`
 { "id": "NOTIFICATION_ID" }
 ```
 
-### Socket Events
-
-When a notification is created, the server emits:
-
-| Event | Direction | Payload |
-|-------|-----------|---------|
-| `new_notification` | Server → User | Full notification object |
-| `notification_read` | Server → User | `{ userId, notificationId }` |
-| `notifications_all_read` | Server → User | `{ userId }` |
-| `notification_dismissed` | Server → User | `{ userId, notificationId }` |
-
 ---
 
 ## Transaction API
@@ -448,21 +553,77 @@ Query param: `id=TRANSACTION_ID`
 
 ---
 
-## Subscription Webhook
+## FAQ API
+
+All endpoints are prefixed with `/faqs`.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/faqs/list` | No | Public FAQ listing |
+| GET | `/faqs/categories` | No | FAQ categories |
+| POST | `/faqs/add` | Admin | Create FAQ |
+| GET | `/faqs/detail` | Admin | Get FAQ by ID |
+| PUT | `/faqs/update` | Admin | Update FAQ |
+| DELETE | `/faqs/delete` | Admin | Delete FAQ |
+| GET | `/faqs/listing` | Admin | Admin listing |
+| PUT | `/faqs/status/change` | Admin | Activate / deactivate |
+
+---
+
+## Settings API
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/settings` | Admin | Get full settings (config, site, SMTP, security) |
+| GET | `/settings/public` | No | Public site settings (social links, support email, ...) |
+| GET | `/settings/crypto` | No | Crypto config fetched by frontend/admin clients |
+| PUT | `/settings` | Admin | Update settings |
+
+---
+
+## Upload API
+
+All endpoints are prefixed with `/upload`. Files are stored under `public/`.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/subscriptions/webhook` | Stripe webhook (raw body, signature verified) |
+| POST | `/upload/image` | Upload single image (multipart `file`, ≤5MB) |
+| POST | `/upload/image-base64` | Upload base64 image |
+| POST | `/upload/document` | Upload single document (≤5MB) |
+| POST | `/upload/multiple-images` | Upload multiple images |
+| POST | `/upload/video` | Upload video (≤5MB) |
+| POST | `/upload/audio` | Upload audio (≤5MB) |
+| POST | `/upload/multiple/documents` | Upload multiple documents (≤10MB each) |
 
-Stripe sends `checkout.session.completed` events to this endpoint. The webhook:
+---
 
-1. Verifies the Stripe signature via `STRIPE_WEBHOOK_SECRET`
-2. Checks idempotency via `stripe_session_id`
-3. Looks up the plan and subscriber (user or organization)
-4. Cancels any existing active subscriptions
-5. Creates/updates the subscription record
-6. Updates the subscriber's `planId` / `subscriptionId`
-7. Fires background tasks: invoice PDF generation, email receipt, notifications
+## Dashboard API
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/admin-dashboard/stats` | Admin | Aggregated dashboard stats |
+
+---
+
+## Socket.IO Events
+
+Clients connect with a JWT (`socket.handshake.auth.token`) and join a per-user room.
+
+| Event | Direction | Payload |
+|-------|-----------|---------|
+| `user_online` | Server → peers | `{ userId }` |
+| `user_offline` | Server → peers | `{ userId }` |
+| `users_online` | Server → peers | `[userId, ...]` |
+| `user_status_change` | Client → server / Server → peers | `{ userId, status }` |
+| `chat_join` / `chat_leave` | Client → server | `{ id }` (conversation id) |
+| `chat_typing` / `chat_stop_typing` | Client → server / room | `{ userId, conversationId }` |
+| `chat_send_message` | Client → server / room | `{ userId, conversationId, message, attachments, timestamp }` |
+| `chat_new_message` | Server → room | Message object |
+| `chat_message_delivered` / `chat_message_read` | Client → room | `{ userId, conversationId, messageId }` |
+| `chat_mark_read` | Client → room | `{ userId, conversationId }` |
+| `chat_edit_message` / `chat_delete_message` | Client → room | Message edit/delete payload |
+| `send_notification` | Client → server | `{ targetUserId, event, data }` |
+| `notification_read` / `notification_dismiss` | Client → server / user room | `{ userId, notificationId }` |
 
 ---
 
@@ -473,7 +634,9 @@ All errors return JSON with the following structure:
 ```json
 {
   "success": false,
+  "code": 400,
   "message": "Error description",
+  "error": { "code": 400, "message": "Error description" },
   "data": null
 }
 ```

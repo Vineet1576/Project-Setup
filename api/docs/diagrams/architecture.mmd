@@ -1,0 +1,10 @@
+graph TB
+    Client[Client] -->|HTTP| MW[Middleware]
+    MW -->|Auth / Decrypt| Ctrl[Controller]
+    Ctrl -->|Call service| Svc[Service]
+    Svc -->|Call repository| Repo[Repository]
+    Repo -->|Query| DB[(MongoDB)]
+    DB -->|Document| Repo
+    Repo -->|Plain object| Svc
+    Svc -->|Result| Ctrl
+    Ctrl -->|JSON| Client

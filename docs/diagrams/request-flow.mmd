@@ -1,0 +1,22 @@
+sequenceDiagram
+    participant C as Client
+    participant MW as Middleware
+    participant Ctrl as Controller
+    participant Svc as Service
+    participant Repo as Repository
+    participant DB as MongoDB
+
+    C->>MW: HTTP Request
+    MW->>MW: Rate limit, CORS, Helmet
+    MW->>MW: Decrypt body (optional)
+    MW->>MW: JWT auth verify
+    MW->>Ctrl: req.identity attached
+    Ctrl->>Svc: Call service method
+    Svc->>Svc: Validate business rules
+    Svc->>Repo: Call repository method
+    Repo->>DB: Mongoose query
+    DB-->>Repo: Raw document
+    Repo->>Repo: Serialize to plain object
+    Repo-->>Svc: { id, name, ... }
+    Svc-->>Ctrl: Result
+    Ctrl-->>C: JSON response

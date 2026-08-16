@@ -1,6 +1,6 @@
 # create-project
 
-A CLI tool that scaffolds a **full-stack project** — pick from **API (Express + MongoDB with Repository Pattern)**, **Frontend (React + Vite)**, or **Admin Panel (React + Vite)** — all in one command. Features JWT authentication, hybrid encryption (RSA+AES-GCM or AES-CBC), user & role management, and optional GitHub push.
+A CLI tool that scaffolds a **full-stack project** — pick from **API (Express + MongoDB with Repository Pattern)**, **Frontend (React + Vite)**, or **Admin Panel (React + Vite)** — all in one command. Features JWT authentication, hybrid encryption (RSA+AES-GCM or AES-CBC), user & role management, real-time chat & presence via Socket.IO, live notifications, Stripe subscriptions with invoices, and optional GitHub push.
 
 ## 🌟 Why This Stands Out
 
@@ -17,6 +17,8 @@ A CLI tool that scaffolds a **full-stack project** — pick from **API (Express 
 | **Stateless JWT Bearer auth** | No cookies, no CSRF surface — immune to CSRF attacks by design |
 | **End-to-end encryption** | Frontend encrypts before sending, server decrypts on arrival. Not just transport-level TLS |
 | **Repository Pattern** | All database logic isolated behind a repository layer — swap MongoDB for PostgreSQL without touching services |
+| **Real-time out of the box** | Socket.IO presence/status, typing indicators, chat messages, and live notification events |
+| **Billing ready** | Stripe subscription purchase/cancel/webhook, invoice PDF generation and emailing |
 
 ## Usage
 
@@ -50,6 +52,8 @@ Based on your choice, the CLI adapts the prompts:
 | **Frontend** | Git, GitHub (no DB/JWT prompts) |
 | **Admin Panel** | Git, GitHub (no DB/JWT prompts) |
 
+The CLI also asks for a **Node.js version** (18 / 20 LTS / 22 / custom) which is written into each generated `package.json` (`engines`) and a `.nvmrc`.
+
 ## What You Get
 
 ### API (Express + MongoDB)
@@ -57,26 +61,59 @@ Based on your choice, the CLI adapts the prompts:
 - **Repository Pattern** — All database logic in `repositories/` layer. Services never touch ORMs.
 - **Polyglot-ready** — Add PostgreSQL or any other database without changing existing services.
 - **JWT auth** — Register, login (user/admin), auto-login, logout
-- **User module** — Profile, password management, forgot/reset password, email verification
-- **Single-use verification links** — New users receive an encrypted "Verify & Login" link (one-time use, 24h expiry). No plaintext passwords in emails.
+- **User module** — Profile, password management, forgot/reset password, email verification (OTP + encrypted one-time "Verify & Login" links)
 - **Admin user management** — Paginated listing, search, filter, CRUD, status/approval
 - **Role module** — Create, update, list, delete roles
+- **Category & Feature modules** — Full CRUD with status toggles
+- **Content management** — Site content CRUD (used for terms/privacy/help pages)
+- **Feedback module** — Public form submission, admin inbox with replies, status changes (frontend "My Feedback" tracking)
+- **FAQ module** — Public listing, categories, and admin CRUD
+- **Plans & Subscriptions** — Plan CRUD and Stripe checkout / cancel / webhook
+- **Transactions & Invoices** — Paginated listing, invoice PDF generation + email + download
+- **Notifications** — Per-user notifications, read/dismiss, unread count, admin broadcast
+- **Real-time** — Socket.IO presence, status, chat events, and live notification push
+- **Uploads** — Images (multipart + base64), documents, multiple documents, video, audio
+- **Admin dashboard stats** — Aggregated counts for the admin panel
 - **Encryption** — Crypto-secure (RSA+AES-GCM) or legacy (AES-CBC), env-configurable
 - **Email** — Nodemailer with SMTP, ready-to-use HTML templates
 - **Security** — Rate limiting, CORS (deny-by-default), Helmet, bcrypt, JWT, payload limits
 
 ### Frontend (React + Vite)
-- Login, Register, Email Verification, Forgot/Reset Password
-- Profile management
-- Fetches crypto config (CRYPTO_SECURE_ENCRYPTION, SECRET_KEY, ENCRYPTION_IV) from the API at runtime
-- Axios interceptors for transparent encryption
+
+- Auth: Login, Register, Email Verification, Auto-login, Forgot/Reset/Change Password
+- Home, Plan listing, Profile, Transactions, Notifications
+- Feedback form + My Feedback (with support replies)
+- Help Center, Terms of Service, Privacy Policy
+- Tailwind CSS, dark UI, axios interceptors with transparent request encryption
+- Fetches crypto config (`CRYPTO_SECURE_ENCRYPTION`, `SECRET_KEY`, `ENCRYPTION_IV`) from the API at runtime
+- Socket.IO client for live notifications
 
 ### Admin Panel (React + Vite)
-- Admin login, Dashboard with user stats
-- User management (list, add, edit, delete)
-- Role management (list, add, edit, delete)
-- Sidebar navigation, DataTable, Modal components
+
+- Admin login, Dashboard with charts and stats
+- Users, Roles, Plans, Transactions, Categories, Content Management, Feedback inbox, Features, Notifications (view + broadcast), FAQs, Settings, Profile
+- Sidebar navigation, DataTable, filters, modals, recharts
 - Fetches crypto config from the API at runtime
+
+## API Response Format
+
+Every API response follows one normalized envelope:
+
+```json
+// success — single resource
+{ "success": true, "code": 200, "message": "…", "data": { } }
+
+// success — list (pagination inside `data`)
+{ "success": true, "code": 200, "message": "…", "data": { "list": [], "total": 0, "page": 1, "count": 10 } }
+
+// success — void / mutation
+{ "success": true, "code": 200, "message": "…", "data": null }
+
+// error
+{ "success": false, "code": 400, "message": "…", "error": { "code": 400, "message": "…" }, "data": null }
+```
+
+When encryption is active the `data` value is encrypted (AES-CBC hex, or a crypto-secure ECDH/RSA envelope) and the clients decrypt it transparently via axios interceptors.
 
 ## Security Architecture
 
@@ -113,10 +150,10 @@ Limits apply per-IP. 100 users from 100 different IPs can each hit login 15 time
 
 | Mode | Algorithm | Key storage | Auto-generate |
 |------|-----------|-------------|---------------|
-| **crypto-secure** (`CRYPTO_SECURE_ENCRYPTION=true`) | RSA-2048 OAEP + AES-256-GCM | `.env` vars | ✅ First run writes keys to `.env` |
+| **crypto-secure** (`CRYPTO_SECURE_ENCRYPTION=true`) | ECDH P-256 + AES-256-GCM (RSA-2048 OAEP fallback) | `.env` vars | ✅ First run writes keys to `.env` |
 | **Legacy** (`CRYPTO_SECURE_ENCRYPTION=false`) | AES-CBC with shared secret | Database settings (`config` collection) | ❌ Must set in the admin settings UI |
 
-When crypto-secure is enabled, the server automatically generates RSA keys on first run and exposes `/.well-known/encryption-key`. Frontend/admin clients fetch the crypto config from `GET /settings/crypto` at runtime and handle encryption transparently via Axios interceptors.
+When crypto-secure is enabled, the server automatically generates keys on first run and exposes `/.well-known/encryption-key`. Frontend/admin clients fetch the crypto config from `GET /settings/crypto` at runtime and handle encryption transparently via Axios interceptors.
 
 ## Architecture — Repository Pattern
 
@@ -129,45 +166,11 @@ All database logic is isolated behind a **repository layer**. Services never tou
 
 ### Architecture Overview
 
-```mermaid
-graph TB
-    Client[Client] -->|HTTP| MW[Middleware]
-    MW -->|Auth / Decrypt| Ctrl[Controller]
-    Ctrl -->|Call service| Svc[Service]
-    Svc -->|Call repository| Repo[Repository]
-    Repo -->|Query| DB[(MongoDB)]
-    DB -->|Document| Repo
-    Repo -->|Plain object| Svc
-    Svc -->|Result| Ctrl
-    Ctrl -->|JSON| Client
-```
+<img src="https://raw.githubusercontent.com/Vineet1576/Project-Setup/main/docs/diagrams/architecture.svg" alt="Architecture Overview">
 
 ### Request Flow
 
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant MW as Middleware
-    participant Ctrl as Controller
-    participant Svc as Service
-    participant Repo as Repository
-    participant DB as MongoDB
-
-    C->>MW: HTTP Request
-    MW->>MW: Rate limit, CORS, Helmet
-    MW->>MW: Decrypt body (optional)
-    MW->>MW: JWT auth verify
-    MW->>Ctrl: req.identity attached
-    Ctrl->>Svc: Call service method
-    Svc->>Svc: Validate business rules
-    Svc->>Repo: Call repository method
-    Repo->>DB: Mongoose query
-    DB-->>Repo: Raw document
-    Repo->>Repo: Serialize to plain object
-    Repo-->>Svc: { id, name, ... }
-    Svc-->>Ctrl: Result
-    Ctrl-->>C: JSON response
-```
+<img src="https://raw.githubusercontent.com/Vineet1576/Project-Setup/main/docs/diagrams/request-flow.svg" alt="Request Flow">
 
 ### Services & Repositories Map
 
@@ -190,12 +193,7 @@ The repository pattern makes polyglot persistence additive, not invasive.
 
 #### Scenario: Add PostgreSQL for Orders
 
-```mermaid
-graph LR
-    S[Service Layer] --> R[Repository Layer]
-    R --> M[(MongoDB<br/>Users, Roles, Plans)]
-    R --> P[(PostgreSQL<br/>Orders, Products)]
-```
+<img src="https://raw.githubusercontent.com/Vineet1576/Project-Setup/main/docs/diagrams/polyglot-postgres.svg" alt="Add PostgreSQL for Orders">
 
 1. Create `models/postgres/Order.js` — Sequelize model
 2. Create `repositories/orderRepository.js` — wraps Sequelize queries
@@ -240,19 +238,18 @@ my-app/
 │   │   └── db.config.js
 │   ├── controllers/                  # Route handlers
 │   ├── Emails/                       # Email templates
-│   ├── middleware/                    # Auth, decrypt
+│   ├── middleware/                    # Auth, decrypt, error handler
 │   ├── models/                       # Mongoose schemas (MongoDB)
 │   ├── repositories/                 # ★ DATABASE LAYER ★
 │   │   ├── repositoryUtils.js        # Shared helpers
 │   │   ├── index.js                  # Barrel export
-│   │   ├── userRepository.js
-│   │   ├── roleRepository.js
 │   │   └── ... (one per domain)
 │   ├── routes/                       # Express routers
 │   ├── services/                     # ★ BUSINESS LOGIC ★
-│   ├── utils/                        # Helpers, constants
+│   ├── utils/                        # Helpers, constants, response
 │   ├── validations/                  # Joi schemas
 │   └── views/                        # Static HTML
+├── public/                           # Uploaded files (img, document, video, audio)
 ├── .env
 ├── .env.example
 ├── ecosystem.config.js
@@ -264,18 +261,21 @@ my-app/
 ```
 my-app/
 ├── src/
-│   ├── api/
+│   ├── Pages/                        # Route components (Login, Home, Profile, ...)
 │   ├── components/
-│   ├── context/
-│   ├── pages/
+│   ├── context/                      # Auth, Socket, Confirm providers
+│   ├── methods/api/                  # Axios API modules + encrypted client
+│   ├── models/                       # encryptDecrypt helpers
 │   ├── utils/
 │   ├── App.jsx
 │   ├── main.jsx
 │   └── index.css
+├── .env.example
 ├── .gitignore
 ├── .prettierrc
 ├── eslint.config.js
 ├── index.html
+├── tailwind.config.js
 ├── vite.config.js
 └── package.json
 ```
@@ -284,27 +284,28 @@ my-app/
 ```
 my-app/
 ├── src/
-│   ├── api/
+│   ├── pages/                        # Dashboard, Users, Roles, Plans, Settings, ...
 │   ├── components/
-│   ├── context/
-│   ├── pages/
-│   │   ├── Dashboard.jsx
-│   │   ├── Login.jsx
-│   │   ├── roles/
-│   │   └── users/
+│   ├── context/                      # Auth, Record, Confirm providers
+│   ├── methods/api/                  # Axios API modules + encrypted client
+│   ├── models/                       # encryptDecrypt helpers
 │   ├── utils/
 │   ├── App.jsx
 │   ├── main.jsx
 │   └── index.css
+├── .env.example
 ├── .gitignore
 ├── .prettierrc
 ├── eslint.config.js
 ├── index.html
+├── tailwind.config.js
 ├── vite.config.js
 └── package.json
 ```
 
 ## Backend API Endpoints
+
+All endpoints are mounted at `/api` (configurable). Responses follow the normalized envelope described above.
 
 ### User (`/users`)
 
@@ -314,6 +315,7 @@ my-app/
 | POST | `/users/signup` | Register via app |
 | POST | `/users/login` | User login |
 | POST | `/users/admin/login` | Admin login |
+| POST | `/users/app-login` | Mobile app login |
 | POST | `/users/auto-login` | Auto-login from token |
 | POST | `/users/logout` | Logout |
 | GET | `/users/profile` | Get own profile |
@@ -345,6 +347,74 @@ my-app/
 | DELETE | `/roles/delete` | Soft-delete role |
 | GET | `/roles/frontend-list` | Active roles for dropdowns |
 
+### Category (`/category`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/category/add` | Create category |
+| GET | `/category/detail` | Get category by ID |
+| PUT | `/category/update` | Update category |
+| DELETE | `/category/delete` | Delete category |
+| GET | `/category/listing` | List categories (paginated) |
+| PUT | `/category/status/change` | Activate/deactivate |
+| GET | `/category/sub/listing` | List sub-categories |
+
+### Feedback (`/feedback`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/feedback/add` | Submit feedback / contact form |
+| GET | `/feedback/detail` | Get feedback by ID |
+| PUT | `/feedback/update` | Update feedback |
+| DELETE | `/feedback/delete` | Soft-delete feedback |
+| GET | `/feedback/listing` | List feedback (paginated, filterable) |
+| PUT | `/feedback/status/change` | Change status (new/read/resolved) |
+| POST | `/feedback/reply` | Admin reply to feedback |
+
+### Content Management (`/content-management`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/content-management/add` | Create content |
+| GET | `/content-management/detail` | Get content by ID/slug |
+| PUT | `/content-management/update` | Update content |
+| GET | `/content-management/listing` | List content |
+| PUT | `/content-management/status/change` | Activate/deactivate |
+| DELETE | `/content-management/delete` | Soft-delete content |
+
+### Feature (`/features`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/features/add` | Create feature |
+| PUT | `/features/update` | Update feature |
+| PUT | `/features/status/change` | Activate/deactivate |
+| GET | `/features/list` | List features |
+| GET | `/features/detail` | Get feature by ID |
+| DELETE | `/features/delete` | Delete feature |
+
+### Plan (`/plans`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/plans/add` | Create plan |
+| PUT | `/plans/update` | Update plan |
+| PUT | `/plans/status/change` | Activate/deactivate |
+| GET | `/plans/list` | List plans |
+| GET | `/plans/detail` | Get plan by ID |
+| DELETE | `/plans/delete` | Delete plan |
+
+### Subscription (`/subscriptions`)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/subscriptions/purchase` | Yes | Create Stripe checkout session |
+| DELETE | `/subscriptions/cancel` | Yes | Cancel subscription |
+| GET | `/subscriptions/detail` | Yes | Get own subscription |
+| GET | `/subscriptions/list` | Yes | List subscriptions |
+| GET | `/subscriptions/customerbalance` | Yes | Retrieve Stripe customer balance |
+| POST | `/subscriptions/webhook` | No | Stripe webhook (raw body, signature verified) |
+
 ### Notification (`/notifications`)
 
 | Method | Path | Auth | Description |
@@ -364,6 +434,66 @@ my-app/
 | POST | `/transactions/send-invoice` | Yes | Email invoice PDF |
 | GET | `/transactions/download` | Yes | Download invoice PDF |
 
+### FAQ (`/faqs`)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/faqs/list` | No | Public FAQ listing |
+| GET | `/faqs/categories` | No | FAQ categories |
+| POST | `/faqs/add` | Admin | Create FAQ |
+| GET | `/faqs/detail` | Admin | Get FAQ by ID |
+| PUT | `/faqs/update` | Admin | Update FAQ |
+| DELETE | `/faqs/delete` | Admin | Delete FAQ |
+| GET | `/faqs/listing` | Admin | Admin listing |
+| PUT | `/faqs/status/change` | Admin | Activate/deactivate |
+
+### Settings (`/settings`)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/settings` | Admin | Get full settings (config, site, SMTP, security) |
+| GET | `/settings/public` | No | Public site settings |
+| GET | `/settings/crypto` | No | Crypto config (encryption mode + keys for clients) |
+| PUT | `/settings` | Admin | Update settings |
+
+### Upload (`/upload`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/upload/image` | Upload single image (multipart `file`) |
+| POST | `/upload/image-base64` | Upload base64 image |
+| POST | `/upload/document` | Upload single document |
+| POST | `/upload/multiple-images` | Upload multiple images |
+| POST | `/upload/video` | Upload video |
+| POST | `/upload/audio` | Upload audio |
+| POST | `/upload/multiple/documents` | Upload multiple documents |
+
+### Dashboard (`/admin-dashboard`)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/admin-dashboard/stats` | Admin | Aggregated dashboard stats |
+
+## Socket.IO Events
+
+Clients connect with a JWT (`socket.handshake.auth.token`) and join a per-user room.
+
+| Event | Direction | Payload |
+|-------|-----------|---------|
+| `user_online` | Server → peers | `{ userId }` |
+| `user_offline` | Server → peers | `{ userId }` |
+| `users_online` | Server → peers | `[userId, ...]` |
+| `user_status_change` | Client → server / Server → peers | `{ userId, status }` |
+| `chat_join` / `chat_leave` | Client → server | `{ id }` (conversation id) |
+| `chat_typing` / `chat_stop_typing` | Client → server / room | `{ userId, conversationId }` |
+| `chat_send_message` | Client → server / room | `{ userId, conversationId, message, attachments, timestamp }` |
+| `chat_new_message` | Server → room | Message object |
+| `chat_message_delivered` / `chat_message_read` | Client → room | `{ userId, conversationId, messageId }` |
+| `chat_mark_read` | Client → room | `{ userId, conversationId }` |
+| `chat_edit_message` / `chat_delete_message` | Client → room | Message edit/delete payload |
+| `send_notification` | Client → server | `{ targetUserId, event, data }` |
+| `notification_read` / `notification_dismiss` | Client → server / user room | `{ userId, notificationId }` |
+
 ## Tech Stack
 
 | Layer | Backend | Frontend / Admin |
@@ -371,13 +501,18 @@ my-app/
 | Framework | Express.js | React 18 + Vite |
 | Database | MongoDB + Mongoose | — |
 | Database Layer | **Repository Pattern** (repositories/) | — |
-| Auth | JWT (`jsonwebtoken`) | Context API + localStorage |
+| Auth | JWT (`jsonwebtoken`) | Context API + sessionStorage |
 | Encryption | `node-forge` / `crypto-secure` | Web Crypto API / Axios interceptors |
+| Real-time | Socket.IO | socket.io-client |
+| Billing | Stripe + PDF invoices (`html-pdf-node`) | — |
 | Rate limiting | `express-rate-limit` | — |
 | Security headers | `helmet` | — |
 | Validation | Joi | — |
 | Email | Nodemailer | — |
 | Password hashing | bcryptjs | — |
+| File uploads | Multer (+ ExcelJS) | — |
+| Styling | — | Tailwind CSS |
+| Charts | — | recharts (admin) |
 | Linting | ESLint (flat config) | ESLint (flat config) |
 | Formatting | Prettier | Prettier |
 | Dev server | Nodemon | Vite dev server |
