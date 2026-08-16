@@ -1,9 +1,12 @@
 {
   "name": "@vineet1576/create-project",
-  "version": "3.3.1",
+  "version": "3.4.0",
   "description": "Scaffold a full-stack Express + React project with Repository Pattern, polyglot database support, JWT auth, Socket.IO presence/chat, real-time notifications, Stripe subscriptions, invoice generation, hybrid encryption (RSA+AES-GCM / AES-CBC), user & role management, optional frontend & admin panels",
   "bin": {
     "create-project": "./bin/cli.js"
+  },
+  "scripts": {
+    "test": "node --test"
   },
   "keywords": [
     "scaffold",
@@ -34,6 +37,11 @@
     "inquirer": "^8.2.6"
   },
   "license": "MIT",
+  "author": "Vineet1576",
+  "homepage": "https://github.com/Vineet1576/Project-Setup#readme",
+  "bugs": {
+    "url": "https://github.com/Vineet1576/Project-Setup/issues"
+  },
   "publishConfig": {
     "access": "public"
   },
