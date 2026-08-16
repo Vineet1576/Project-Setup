@@ -3,6 +3,7 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import NotificationBell from '../../common/NotificationBell';
 import { capitalizeName, getInitials } from '../../../utils/name';
+import { enabledModules } from '../../../config/modules';
 
 const navLinks = [
   {
@@ -244,6 +245,26 @@ const navLinks = [
   },
 ];
 
+const navModuleByPath = {
+  '/': null,
+  '/notifications': null,
+  '/settings': null,
+  '/users': 'users',
+  '/roles': 'roles',
+  '/plans': 'plans',
+  '/transactions': 'transactions',
+  '/categories': 'categories',
+  '/content-management': 'contentManagement',
+  '/feedback': 'feedback',
+  '/features': 'features',
+  '/faqs': 'faqs',
+};
+
+const visibleNavLinks = navLinks.filter((link) => {
+  const moduleKey = navModuleByPath[link.to];
+  return moduleKey === undefined || moduleKey === null || enabledModules.includes(moduleKey);
+});
+
 export default function Layout({ children }) {
   const { auth, logout } = useAuth();
   const navigate = useNavigate();
@@ -319,7 +340,7 @@ export default function Layout({ children }) {
           </div>
         </button>
         <nav className="admin-nav">
-          {navLinks.map((link) => (
+          {visibleNavLinks.map((link) => (
             <NavLink
               key={link.to}
               to={link.to}
